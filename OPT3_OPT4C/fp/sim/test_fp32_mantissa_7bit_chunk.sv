@@ -110,9 +110,9 @@ task check_case;
         sched_acc = 64'd0;
         cycles = 0;
 
-        @(posedge clk);
+        @(negedge clk);
         start = 1'b1;
-        @(posedge clk);
+        @(negedge clk);
         start = 1'b0;
 
         while (!done) begin
@@ -138,4 +138,3 @@ task check_case;
 endtask
 
 endmodule
-
