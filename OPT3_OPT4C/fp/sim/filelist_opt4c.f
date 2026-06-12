@@ -1,0 +1,10 @@
+../../pe/sim/timescale.sv
+../../pe/DW02_tree.sv
+../../pe/encoder_multi_bit.v
+../../pe/pe.v
+../../pe/sparse_encoder.v
+../../pe/get_pipline_mulwidth.v
+../../pe/top_pe.v
+../fp32_mantissa_7bit_chunk_mul.sv
+../fp32_mantissa_7bit_pair_scheduler.sv
+test_fp32_mantissa_7bit_opt4c.sv

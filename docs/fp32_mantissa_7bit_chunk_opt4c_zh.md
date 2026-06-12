@@ -521,6 +521,27 @@ bash run.sh
 SUCCESS: fp32 mantissa 7-bit chunk tests passed.
 ```
 
+第二阶段加入了经过真实 OPT4C 单 PE 路径的集成验证：
+
+| 文件 | 作用 |
+| --- | --- |
+| `OPT3_OPT4C/fp/sim/test_fp32_mantissa_7bit_opt4c.sv` | 将 scheduler 发出的 `(Ai, Bj, shift)` 逐个送入 `encoder_multi_bit + top_pe`，再累加成 48-bit mantissa product |
+| `OPT3_OPT4C/fp/sim/filelist_opt4c.f` | OPT4C 集成仿真 filelist，包含 `encoder_multi_bit`、`sparse_encoder`、`pe`、`top_pe` |
+| `OPT3_OPT4C/fp/sim/run_opt4c.sh` | OPT4C 集成仿真脚本 |
+
+服务器运行：
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/sim
+bash run_opt4c.sh
+```
+
+预期输出：
+
+```text
+SUCCESS: fp32 mantissa 7-bit OPT4C integration tests passed.
+```
+
 ### 综合检查
 
 至少比较：
