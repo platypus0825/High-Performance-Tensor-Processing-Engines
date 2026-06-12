@@ -1,13 +1,13 @@
 set my_corner "saed32rvt_tt0p85v25c"
 set my_search_path "/apps/synopsys/syn_vS-2021.06-SP5/dw/sim_ver"
-set my_target_library           "/home/vcs/workspace/wqz/code/experiment/HPCA2025/library/${my_corner}.db"
+set my_target_library           "/home/chenhao/work/High-Performance-Tensor-Processing-Engines/library/${my_corner}.db"
 set my_link_library             "* ${my_target_library} /apps/synopsys/syn_vS-2021.06-SP5/libraries/syn/dw_foundation.sldb"
 
 set my_clk_period   
 set netlist_period  1.5
 set save_name      opt1_mac
-set file_path "/home/vcs/workspace/wqz/code/experiment/HPCA2025/OPT1/systolic_array_os/opt1_pe/syn/outputs/saed32rvt_tt0p85v25c"
-set fsdb_path "/home/vcs/workspace/wqz/code/experiment/HPCA2025/OPT1/systolic_array_os/opt1_pe/sim"
+set file_path "/home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT1/systolic_array_os/opt1_pe/syn/outputs/saed32rvt_tt0p85v25c"
+set fsdb_path "/home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT1/systolic_array_os/opt1_pe/sim"
 set my_strip_path "test_opt1_mac/opt1_mac_test"
 
 

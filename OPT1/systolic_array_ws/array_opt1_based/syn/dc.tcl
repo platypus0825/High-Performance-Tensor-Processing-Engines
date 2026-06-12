@@ -20,7 +20,7 @@ set my_verilog_list  "filelist.f"
 set my_current_design_name      top
 set my_current_file_name        top_opt1_array_16
 set my_search_path              "/apps/synopsys/syn_vS-2021.06-SP5/dw/sim_ver"
-set my_target_library           "/home/vcs/workspace/wqz/code/experiment/HPCA2025/library/${my_corner}.db"
+set my_target_library           "/home/chenhao/work/High-Performance-Tensor-Processing-Engines/library/${my_corner}.db"
 set my_link_library             "* ${my_target_library} /apps/synopsys/syn_vS-2021.06-SP5/libraries/syn/dw_foundation.sldb"
 set my_clk_list {
                                 "clk"

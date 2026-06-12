@@ -20,12 +20,16 @@ set my_verilog_list  "filelist.f"
 set my_current_design_name      opt1_mac
 set my_current_file_name        opt1_mac
 set my_search_path              "/apps/synopsys/syn_vS-2021.06-SP5/dw/sim_ver"
-set my_target_library           "/home/vcs/workspace/wqz/code/experiment/HPCA2025/library/${my_corner}.db"
+set my_target_library           "/home/chenhao/work/High-Performance-Tensor-Processing-Engines/library/${my_corner}.db"
 set my_link_library             "* ${my_target_library} /apps/synopsys/syn_vS-2021.06-SP5/libraries/syn/dw_foundation.sldb"
 set my_clk_list {
                                 "clk"
 }
-set my_clk_period               1.11
+if {[info exists ::env(CLK_PERIOD)]} {
+    set my_clk_period $::env(CLK_PERIOD)
+} else {
+    set my_clk_period               1.11
+}
 set my_constrain_list {
 }
 set my_output_netlist_name      ${my_current_file_name}_netlist
@@ -78,8 +82,10 @@ report_clock
 # compile_ultra  -retime
 compile_ultra -retime
 report_timing   > ./outputs/${my_corner}/${my_current_file_name}_timing_report_${my_clk_period}.txt
+report_timing -delay_type max -max_paths 10 -nets -transition_time -capacitance > ./outputs/${my_corner}/${my_current_file_name}_timing_top10_${my_clk_period}.txt
 report_area  -hierarchy   > ./outputs/${my_corner}/${my_current_file_name}_area_report_${my_clk_period}.txt
 report_power    > ./outputs/${my_corner}/${my_current_file_name}_power_report_${my_clk_period}.txt
+report_constraint -all_violators > ./outputs/${my_corner}/${my_current_file_name}_constraint_violators_${my_clk_period}.txt
 
 write_file -f verilog -hierarchy -o ./outputs/${my_corner}/${my_output_netlist_name}_${my_clk_period}.v
 write_sdf ./outputs/${my_corner}/${my_output_sdf_name}_${my_clk_period}.sdf
