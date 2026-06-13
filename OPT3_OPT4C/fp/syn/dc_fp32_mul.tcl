@@ -17,7 +17,7 @@ set my_current_design_name   fp32_mul_7bit_chunk
 set my_current_file_name     fp32_mul_7bit_chunk
 set my_search_path           "/apps/synopsys/syn_vS-2021.06-SP5/dw/sim_ver"
 set my_target_library        "/home/chenhao/work/High-Performance-Tensor-Processing-Engines/library/${my_corner}.db"
-set my_link_library          "* ${my_target_library} /apps/synopsys/syn_vS-2021.06-SP5/libraries/syn/dw_foundation.sldb"
+set my_link_library          "* ${my_target_library} /opt/Synopsys/syn/R-2020.09-SP4/libraries/syn/dw_foundation.sldb"
 
 if {[info exists ::env(CLK_PERIOD)]} {
     set my_clk_period $::env(CLK_PERIOD)

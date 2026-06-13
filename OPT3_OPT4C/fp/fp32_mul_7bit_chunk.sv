@@ -148,10 +148,15 @@ always_comb begin
             mantissa_rounded = shifted_product[23:0];
 
             if (shift_right > 0) begin
-                guard_bit = mantissa_product[shift_right - 1];
+                guard_bit = 1'b0;
                 sticky_bit = 1'b0;
-                for (k = 0; k < shift_right - 1; k = k + 1) begin
-                    sticky_bit = sticky_bit | mantissa_product[k];
+                for (k = 0; k < 48; k = k + 1) begin
+                    if (k == (shift_right - 1)) begin
+                        guard_bit = mantissa_product[k];
+                    end
+                    if (k < (shift_right - 1)) begin
+                        sticky_bit = sticky_bit | mantissa_product[k];
+                    end
                 end
                 round_up = guard_bit & (sticky_bit | mantissa_rounded[0]);
                 inexact = guard_bit | sticky_bit;
@@ -198,16 +203,16 @@ always_comb begin
                 end else begin
                     sub_mantissa = mantissa_product >> sub_shift;
                     sub_frac = sub_mantissa[22:0];
-                    sub_guard = mantissa_product[sub_shift - 1];
+                    sub_guard = 1'b0;
                     sub_sticky = 1'b0;
-                    for (k = 0; k < sub_shift - 1; k = k + 1) begin
-                        sub_sticky = sub_sticky | mantissa_product[k];
+                    for (k = 0; k < 48; k = k + 1) begin
+                        if (k == (sub_shift - 1)) begin
+                            sub_guard = mantissa_product[k];
+                        end
+                        if (k < (sub_shift - 1)) begin
+                            sub_sticky = sub_sticky | mantissa_product[k];
+                        end
                     end
-                end
-
-                if (sub_shift == 48) begin
-                    sub_guard = mantissa_product[47];
-                    sub_sticky = |mantissa_product[46:0];
                 end
 
                 sub_round_up = sub_guard & (sub_sticky | sub_frac[0]);
