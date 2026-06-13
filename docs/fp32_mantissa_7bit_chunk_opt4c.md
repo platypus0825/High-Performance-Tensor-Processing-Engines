@@ -588,11 +588,23 @@ S3: final rounding, exponent correction, special/subnormal packing
 
 The original INT datapath remains outside this FP-only wrapper. The intent is to study FP-only timing improvement without placing normalization or rounding logic on the INT critical path.
 
+After synthesis showed that `pipe3` still violates at the `operand_b -> mantissa_product_s1_reg` path, `fp32_mul_7bit_chunk_pipe4` adds one more boundary before the 48-bit mantissa product:
+
+```text
+S1: input unpack, 7-bit chunk split, 16 chunk-product registers
+S2: shifted reduction into 48-bit mantissa_product
+S3: leading-one detection, normalization shift, guard/sticky preparation
+S4: final rounding, exponent correction, special/subnormal packing
+```
+
+This variant directly targets the measured pipe3 bottleneck in mantissa product generation.
+
 Simulation:
 
 ```bash
 cd OPT3_OPT4C/fp/sim
 bash run_fp32_pipe3.sh
+bash run_fp32_pipe4.sh
 ```
 
 Synthesis:
@@ -600,4 +612,5 @@ Synthesis:
 ```bash
 cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
 CLK_PERIOD=2.0 dc_shell -64bit -f dc_fp32_mul_pipe3.tcl > logs/dc_fp32_pipe3_2.0.log 2>&1
+CLK_PERIOD=2.0 dc_shell -64bit -f dc_fp32_mul_pipe4.tcl > logs/dc_fp32_pipe4_2.0.log 2>&1
 ```

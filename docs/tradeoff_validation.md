@@ -67,6 +67,7 @@ cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/s
 bash sweep_fp32.sh
 bash sweep_fp32_pipe.sh
 bash sweep_fp32_pipe3.sh
+bash sweep_fp32_pipe4.sh
 ```
 
 Summarize the generated reports from the project root:
