@@ -573,6 +573,40 @@ baseline OPT4C PE/column
 OPT4C + 7-bit FP mantissa wrapper
 ```
 
+当前已经加入组合 FP32 multiply 原型的 DC 综合入口：
+
+| 文件 | 作用 |
+| --- | --- |
+| `OPT3_OPT4C/fp/syn/filelist_fp32.f` | FP32 multiply 综合 filelist |
+| `OPT3_OPT4C/fp/syn/dc_fp32_mul.tcl` | `fp32_mul_7bit_chunk` 的 DC 综合脚本 |
+| `OPT3_OPT4C/fp/syn/sweep_fp32.sh` | 时钟周期 sweep 脚本 |
+
+注意：`fp32_mul_7bit_chunk` 是组合模块，没有真实 `clk` 端口。该综合脚本使用 virtual clock 和 `set_max_delay` 来约束 input-to-output path，因此报告含义是“组合 FP32 multiply 原型能否在给定等效周期内闭合”，不是流水线 Fmax。
+
+服务器运行：
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+bash sweep_fp32.sh
+```
+
+如需快速 smoke test：
+
+```bash
+mkdir -p logs
+CLK_PERIOD=5.0 dc_shell -64bit -f dc_fp32_mul.tcl > logs/dc_fp32_5.0_smoke.log 2>&1
+tail -n 80 logs/dc_fp32_5.0_smoke.log
+```
+
+报告路径：
+
+```text
+OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c/fp32_mul_7bit_chunk_timing_report_<period>.txt
+OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c/fp32_mul_7bit_chunk_timing_top10_<period>.txt
+OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c/fp32_mul_7bit_chunk_area_report_<period>.txt
+OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c/fp32_mul_7bit_chunk_constraint_violators_<period>.txt
+```
+
 需要报告：
 
 ```text
