@@ -530,3 +530,48 @@ This design should be presented as a conservative reuse-first path:
 The proposed FP mantissa datapath decomposes a 24-bit mantissa into four sign-safe 7-bit chunks. Each chunk is zero-extended to INT8 and mapped to the existing OPT4C signed PE without unsigned correction. The wrapper schedules chunk-pair products, skips zero pairs, applies the global weight shift outside the PE, and reduces the aligned products before FP normalization and rounding. This trades more time-multiplexed chunk products for minimal changes to the PE critical path.
 ```
 
+## Pipelined FP32 Prototype
+
+The combinational `fp32_mul_7bit_chunk` prototype is useful as a correctness and synthesis baseline, but its critical path includes both mantissa product generation and FP32 post-processing:
+
+```text
+operand_a/operand_b
+  -> 7-bit chunk product accumulation
+  -> mantissa_product
+  -> leading-one detection / normalization
+  -> rounding
+  -> result packing
+```
+
+The pipelined prototype `fp32_mul_7bit_chunk_pipe` adds a register boundary after `mantissa_product` and the corresponding FP metadata:
+
+```text
+cycle N:
+  input operands
+    -> chunk product accumulation
+    -> mantissa_product_s1 register
+
+cycle N+1:
+  mantissa_product_s1
+    -> normalize / round / pack
+    -> registered FP32 result
+```
+
+The arithmetic result is unchanged. The tradeoff is one extra pipeline stage and additional registers in exchange for shorter single-cycle timing paths. The module uses `valid_in` and `valid_out` so it can later be connected to a time-multiplexed scheduler.
+
+Simulation:
+
+```bash
+cd OPT3_OPT4C/fp/sim
+bash run_fp32_pipe.sh
+```
+
+Synthesis on the server:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+mkdir -p logs
+CLK_PERIOD=3.0 dc_shell -64bit -f dc_fp32_mul_pipe.tcl > logs/dc_fp32_pipe_3.0.log 2>&1
+```
+
+The pipelined report should be compared against the combinational FP32 result using area, slack, and the top timing paths. This comparison separates the cost of FP32 support from the timing benefit of staging the wrapper.

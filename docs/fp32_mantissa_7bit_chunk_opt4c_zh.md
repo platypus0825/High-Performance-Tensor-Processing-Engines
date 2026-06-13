@@ -636,3 +636,49 @@ PE 内部 critical path 与原 OPT4C 接近；
 PE 外部 wrapper 负责 chunk pair 调度、零值跳过、global weight shift、aligned product 归约以及后续 FP normalization 和 rounding。
 该方案以更多时分复用周期为代价，降低了对 PE 关键路径的侵入，是一种适合早期验证的定点/浮点统一接口设计。
 ```
+
+## Pipelined FP32 原型
+
+组合版 `fp32_mul_7bit_chunk` 适合作为功能正确性和综合 baseline，但它的关键路径同时包含尾数乘积生成和 FP32 后处理：
+
+```text
+operand_a/operand_b
+  -> 7-bit chunk product accumulation
+  -> mantissa_product
+  -> leading-one detection / normalization
+  -> rounding
+  -> result packing
+```
+
+新增的 `fp32_mul_7bit_chunk_pipe` 在 `mantissa_product` 以及对应的 FP metadata 后插入一级寄存器：
+
+```text
+cycle N:
+  input operands
+    -> chunk product accumulation
+    -> mantissa_product_s1 register
+
+cycle N+1:
+  mantissa_product_s1
+    -> normalize / round / pack
+    -> registered FP32 result
+```
+
+这个改动不改变算术结果，只改变计算在时间上的分布。代价是增加一级 pipeline latency 和一批寄存器，收益是把原本一条很长的组合路径切成两条较短路径。模块提供 `valid_in` 和 `valid_out`，后续可以接到时分复用调度器。
+
+仿真：
+
+```bash
+cd OPT3_OPT4C/fp/sim
+bash run_fp32_pipe.sh
+```
+
+服务器综合：
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+mkdir -p logs
+CLK_PERIOD=3.0 dc_shell -64bit -f dc_fp32_mul_pipe.tcl > logs/dc_fp32_pipe_3.0.log 2>&1
+```
+
+后续报告里应该把 pipeline 版和组合版的 area、slack、top timing path 放在一起比较。这样可以分离两个问题：FP32 支持本身带来的硬件开销，以及插 pipeline 对时序闭合的收益。
