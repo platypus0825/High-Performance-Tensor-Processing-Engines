@@ -60,6 +60,14 @@ To customize periods without editing the script:
 PERIODS="1.2 1.1 1.0 0.9 0.8" bash sweep.sh
 ```
 
+FP32 wrapper sweeps:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+bash sweep_fp32.sh
+bash sweep_fp32_pipe.sh
+```
+
 Summarize the generated reports from the project root:
 
 ```bash
