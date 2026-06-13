@@ -119,6 +119,34 @@ The top timing paths at 0.59 ns and 0.58 ns mainly terminate around `genblk1[x].
 
 Current conclusion: under the N=32 configuration, DC synthesis flow, and wire-load model used here, OPT4C's dataflow mapping has been functionally validated by simulation and is not obviously blocked by shared-control fanout. The main tradeoff is that pushing beyond the 0.59 ns timing boundary increases area but gives limited timing benefit; the bottleneck remains inside the PE compression-accumulation path.
 
+## FP32 7-bit Chunk Pipeline Result
+
+This subsection records the first FP32 wrapper timing result for the 7-bit chunk design. The combinational baseline is `fp32_mul_7bit_chunk`; the pipelined version is `fp32_mul_7bit_chunk_pipe`, which inserts one register boundary after `mantissa_product` and the associated FP metadata. The functionality of the pipelined version has been checked against the combinational reference:
+
+```text
+SUCCESS: fp32 7-bit chunk pipelined multiply tests passed.
+```
+
+The combinational FP32 baseline closed at 5.3 ns with area 12321.917662. Its top path started from `operand_b[10]`, passed through full-adder based mantissa product accumulation and FP32 normalization/rounding/packing logic, and ended at `result` fraction bits.
+
+Pipeline synthesis results:
+
+| Period | Slack | Total cell area |
+| ---: | ---: | ---: |
+| 3.0 ns | 0.00 | 12136.900811 |
+| 2.8 ns | 0.00 | 12452.547678 |
+| 2.6 ns | -0.03 | 12874.426731 |
+| 2.4 ns | -0.26 | not recorded |
+
+The tightest observed MET point is 2.8 ns, corresponding to about 357.1 MHz. Compared with the combinational 5.3 ns baseline, this is about a 1.89x shorter clock period for roughly 1.06% area increase at the tightest MET point:
+
+```text
+5.3 ns -> 188.7 MHz, area = 12321.917662
+2.8 ns -> 357.1 MHz, area = 12452.547678
+```
+
+The result confirms the intended pipeline tradeoff: one extra cycle of latency and extra sequential state substantially shorten the single-cycle timing path. The remaining boundary appears to be between 2.6 ns and 2.8 ns; a finer sweep around 2.65-2.75 ns can locate the practical closing point more accurately.
+
 ## Bandwidth Table Template
 
 Fill this table using the exact configuration used in synthesis and simulation.
