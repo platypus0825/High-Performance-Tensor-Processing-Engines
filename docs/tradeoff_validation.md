@@ -135,17 +135,19 @@ Pipeline synthesis results:
 | ---: | ---: | ---: |
 | 3.0 ns | 0.00 | 12136.900811 |
 | 2.8 ns | 0.00 | 12452.547678 |
+| 2.7 ns | 0.00 | 12510.238374 |
+| 2.65 ns | 0.00 | 12455.089121 |
 | 2.6 ns | -0.03 | 12874.426731 |
 | 2.4 ns | -0.26 | not recorded |
 
-The tightest observed MET point is 2.8 ns, corresponding to about 357.1 MHz. Compared with the combinational 5.3 ns baseline, this is about a 1.89x shorter clock period for roughly 1.06% area increase at the tightest MET point:
+The tightest observed MET point is 2.65 ns, corresponding to about 377.4 MHz. Compared with the combinational 5.3 ns baseline, this is a 2.0x shorter clock period for roughly 1.08% area increase at the tightest MET point:
 
 ```text
 5.3 ns -> 188.7 MHz, area = 12321.917662
-2.8 ns -> 357.1 MHz, area = 12452.547678
+2.65 ns -> 377.4 MHz, area = 12455.089121
 ```
 
-The result confirms the intended pipeline tradeoff: one extra cycle of latency and extra sequential state substantially shorten the single-cycle timing path. The remaining boundary appears to be between 2.6 ns and 2.8 ns; a finer sweep around 2.65-2.75 ns can locate the practical closing point more accurately.
+The result confirms the intended pipeline tradeoff: one extra cycle of latency and extra sequential state substantially shorten the single-cycle timing path. The remaining boundary appears to be between 2.6 ns and 2.65 ns; a finer sweep around 2.62-2.64 ns can locate the practical closing point more accurately.
 
 ## Bandwidth Table Template
 
