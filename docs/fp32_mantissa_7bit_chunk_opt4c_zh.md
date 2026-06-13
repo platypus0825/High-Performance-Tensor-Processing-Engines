@@ -542,6 +542,28 @@ bash run_opt4c.sh
 SUCCESS: fp32 mantissa 7-bit OPT4C integration tests passed.
 ```
 
+第三阶段加入完整 FP32 multiply 组合原型：
+
+| 文件 | 作用 |
+| --- | --- |
+| `OPT3_OPT4C/fp/fp32_mul_7bit_chunk.sv` | FP32 unpack、7-bit mantissa product、normalize、round-to-nearest-even、pack，以及基础异常 flag |
+| `OPT3_OPT4C/fp/sim/test_fp32_mul_7bit_chunk.sv` | FP32 multiply testbench，覆盖 normal finite 随机测试和 zero/inf/NaN/overflow 特殊情况 |
+| `OPT3_OPT4C/fp/sim/filelist_fp32.f` | FP32 multiply 仿真 filelist |
+| `OPT3_OPT4C/fp/sim/run_fp32.sh` | FP32 multiply 仿真脚本 |
+
+服务器运行：
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/sim
+bash run_fp32.sh
+```
+
+预期输出：
+
+```text
+SUCCESS: fp32 7-bit chunk multiply tests passed.
+```
+
 ### 综合检查
 
 至少比较：
