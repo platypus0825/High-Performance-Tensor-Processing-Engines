@@ -575,3 +575,29 @@ CLK_PERIOD=3.0 dc_shell -64bit -f dc_fp32_mul_pipe.tcl > logs/dc_fp32_pipe_3.0.l
 ```
 
 The pipelined report should be compared against the combinational FP32 result using area, slack, and the top timing paths. This comparison separates the cost of FP32 support from the timing benefit of staging the wrapper.
+
+### Deeper Pipeline Variant
+
+Following the 6-stage organization used by the referenced reconfigurable floating/fixed-point PE, a deeper prototype `fp32_mul_7bit_chunk_pipe3` further separates the FP wrapper into:
+
+```text
+S0/S1: input unpack, classification, and 7-bit mantissa product generation
+S2: leading-one detection, normalization shift, guard/sticky preparation
+S3: final rounding, exponent correction, special/subnormal packing
+```
+
+The original INT datapath remains outside this FP-only wrapper. The intent is to study FP-only timing improvement without placing normalization or rounding logic on the INT critical path.
+
+Simulation:
+
+```bash
+cd OPT3_OPT4C/fp/sim
+bash run_fp32_pipe3.sh
+```
+
+Synthesis:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+CLK_PERIOD=2.0 dc_shell -64bit -f dc_fp32_mul_pipe3.tcl > logs/dc_fp32_pipe3_2.0.log 2>&1
+```
