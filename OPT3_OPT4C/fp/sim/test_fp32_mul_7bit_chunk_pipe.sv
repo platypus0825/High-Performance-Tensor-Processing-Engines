@@ -34,7 +34,7 @@ fp32_mul_7bit_chunk_pipe dut (
     .inexact(inexact)
 );
 
-fp32_mul_7bit_chunk ref (
+fp32_mul_7bit_chunk ref_dut (
     .operand_a(operand_a),
     .operand_b(operand_b),
     .result(ref_result),
