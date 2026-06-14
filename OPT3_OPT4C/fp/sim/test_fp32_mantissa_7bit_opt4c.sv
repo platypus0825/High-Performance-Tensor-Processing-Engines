@@ -145,12 +145,17 @@ initial begin
     check_case(24'h000000, 24'hffffff);
     check_case(24'h00007f, 24'h00007f);
     check_case(24'h00ff80, 24'h7f0081);
+    check_pruned_case(24'hffffff, 24'hffffff, 3'd1);
+    check_pruned_case(24'hffffff, 24'hffffff, 3'd2);
+    check_pruned_case(24'hffffff, 24'hffffff, 3'd3);
+    check_pruned_case(24'h812345, 24'h8abcde, 3'd4);
 
     repeat (100) begin
         check_case($urandom() & 24'hffffff, $urandom() & 24'hffffff);
+        check_pruned_case($urandom() & 24'hffffff, $urandom() & 24'hffffff, ($urandom() % 5));
     end
 
-    $display("\033[1;32mSUCCESS: fp32 mantissa 7-bit OPT4C integration tests passed.\033[0m");
+    $display("\033[1;32mSUCCESS: fp32 mantissa 7-bit OPT4C integration pruning tests passed.\033[0m");
     $finish;
 end
 
@@ -210,6 +215,24 @@ end
 task check_case;
     input [23:0] a;
     input [23:0] b;
+    begin
+        check_case_with_min_group(a, b, 3'd0);
+    end
+endtask
+
+task check_pruned_case;
+    input [23:0] a;
+    input [23:0] b;
+    input [2:0]  prune_min_group;
+    begin
+        check_case_with_min_group(a, b, prune_min_group);
+    end
+endtask
+
+task check_case_with_min_group;
+    input [23:0] a;
+    input [23:0] b;
+    input [2:0]  case_min_group;
     reg [47:0] golden;
     reg [63:0] opt4c_acc;
     reg [31:0] chunk_product;
@@ -219,11 +242,11 @@ task check_case;
         test_id = test_id + 1;
         mantissa_a = a;
         mantissa_b = b;
-        min_group = 3'd0;
+        min_group = case_min_group;
         #1;
 
-        golden = {24'd0, a} * {24'd0, b};
-        if (product !== golden) begin
+        golden = pruned_product(a, b, case_min_group);
+        if ((case_min_group == 3'd0) && (product !== golden)) begin
             $error("comb mismatch test=%0d a=%h b=%h expected=%h got=%h",
                    test_id, a, b, golden, product);
             #1 $finish;
@@ -238,13 +261,48 @@ task check_case;
         end
 
         if (opt4c_acc[47:0] !== golden) begin
-            $error("opt4c mismatch test=%0d a=%h b=%h expected=%h got=%h pair_count=%0d pair_mask=%h group_mask=%h",
-                   test_id, a, b, golden, opt4c_acc[47:0], pair_count,
+            $error("opt4c mismatch test=%0d a=%h b=%h min_group=%0d expected=%h got=%h pair_count=%0d pair_mask=%h group_mask=%h",
+                   test_id, a, b, case_min_group, golden, opt4c_acc[47:0], pair_count,
                    sched_pair_valid_mask, sched_group_valid_mask);
             #1 $finish;
         end
     end
 endtask
+
+function [7:0] get_mantissa_chunk;
+    input [23:0] value;
+    input integer chunk_index;
+    begin
+        case (chunk_index)
+            0: get_mantissa_chunk = {1'b0, value[6:0]};
+            1: get_mantissa_chunk = {1'b0, value[13:7]};
+            2: get_mantissa_chunk = {1'b0, value[20:14]};
+            default: get_mantissa_chunk = {5'b0, value[23:21]};
+        endcase
+    end
+endfunction
+
+function [47:0] pruned_product;
+    input [23:0] a;
+    input [23:0] b;
+    input [2:0]  prune_min_group;
+    reg [63:0] acc;
+    reg [15:0] pair_product;
+    integer i;
+    integer j;
+    begin
+        acc = 64'd0;
+        for (i = 0; i < 4; i = i + 1) begin
+            for (j = 0; j < 4; j = j + 1) begin
+                if ((i + j) >= prune_min_group) begin
+                    pair_product = get_mantissa_chunk(a, i) * get_mantissa_chunk(b, j);
+                    acc = acc + ({48'd0, pair_product} << (7 * (i + j)));
+                end
+            end
+        end
+        pruned_product = acc[47:0];
+    end
+endfunction
 
 task collect_scheduler_pairs;
     output integer pair_count;
@@ -263,6 +321,11 @@ task collect_scheduler_pairs;
             #1;
             cycles = cycles + 1;
             if (sched_valid) begin
+                if (sched_group_index < min_group) begin
+                    $error("scheduler emitted low group test=%0d group=%0d min=%0d",
+                           test_id, sched_group_index, min_group);
+                    #1 $finish;
+                end
                 if (pair_count >= MAX_PAIRS) begin
                     $error("too many scheduler pairs");
                     #1 $finish;
