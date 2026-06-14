@@ -81,6 +81,7 @@ bash sweep_fp32.sh
 bash sweep_fp32_pipe.sh
 bash sweep_fp32_pipe3.sh
 bash sweep_fp32_pipe4.sh
+bash sweep_int_fp_wrapper.sh
 ```
 
 Summarize the generated reports from the project root:
@@ -209,6 +210,45 @@ Selected results:
 The most useful pruning family is diagonal-group pruning. Dropping only low-weight groups keeps the high-weight cross terms and gives better accuracy than simply truncating both operands to their top chunks. For example, dropping G0-G2 uses about 9.91 active pairs with P99 relative error around 3.63e-06, while keeping only the top 3 chunks uses about 8.91 active pairs but has P99 relative error around 2.18e-05. Raw pair-product magnitude is not a good pruning criterion because high-weight top chunks can have small raw products before the global shift.
 
 The RTL scheduler now includes `min_group` to implement this policy directly. `min_group=0` keeps the exact full-product behavior. Larger values skip lower diagonal groups at scheduling time, so the pruned FP mode issues fewer chunk pairs without changing the INT PE.
+
+## INT/FP Mode Wrapper Milestone
+
+The first combined wrapper is `OPT3_OPT4C/fp/opt4c_int_fp_mode_wrapper.sv`. It keeps the original `top_pe` and `pe` modules unchanged and selects the source of the PE inputs at the wrapper boundary:
+
+```text
+mode_fp = 0:
+    INT wrapper inputs -> original top_pe -> INT result
+
+mode_fp = 1:
+    FP mantissa scheduler -> encoder_multi_bit -> original top_pe
+      -> PE-external shift/accumulate -> FP mantissa product
+```
+
+The corresponding simulation is:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/sim
+bash run_int_fp_wrapper.sh
+```
+
+The observed pass condition is:
+
+```text
+SUCCESS: OPT4C INT/FP mode wrapper tests passed.
+```
+
+This simulation checks two contract points. In INT mode, the wrapper is compared cycle-by-cycle against a bare `top_pe`, confirming that the wrapper does not change INT functional behavior. In FP mode, full and pruned 7-bit mantissa products are computed through the same `encoder_multi_bit + top_pe` path and compared against the pruned golden product.
+
+Synthesis support has been added in `OPT3_OPT4C/fp/syn/dc_int_fp_wrapper.tcl`. The script compiles the full dual-mode wrapper first, then applies `mode_fp` case analysis only for reporting:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+
+MODE=int CLK_PERIOD=0.59 dc_shell -64bit -f dc_int_fp_wrapper.tcl > logs/dc_int_fp_wrapper_int_0.59.log 2>&1
+MODE=fp  CLK_PERIOD=1.00 dc_shell -64bit -f dc_int_fp_wrapper.tcl > logs/dc_int_fp_wrapper_fp_1.00.log 2>&1
+```
+
+This keeps area reporting representative of the full INT+FP wrapper while allowing mode-specific timing inspection. The key INT-first check is whether `opt4c_int_fp_mode_wrapper_int` can meet the original OPT4C INT timing target without moving the critical path into FP-specific control.
 
 ## Bandwidth Table Template
 

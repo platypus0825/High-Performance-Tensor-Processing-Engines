@@ -82,3 +82,52 @@ mode == FP32:
 6. 裁剪带来的精度损失是否可量化、可配置。
 
 其中 1、2、3 是硬约束；4、5、6 是在满足硬约束之后再优化的 tradeoff。
+
+## 当前拼接原型状态
+
+当前新增的拼接原型是：
+
+```text
+OPT3_OPT4C/fp/opt4c_int_fp_mode_wrapper.sv
+```
+
+它不修改原始 `top_pe.v` 和 `pe.v`，而是在 PE 外层做模式选择：
+
+```text
+mode_fp = 0:
+    INT 输入直接进入原始 top_pe，输出 INT PE 结果。
+
+mode_fp = 1:
+    FP32 mantissa -> 7-bit chunk scheduler
+      -> encoder_multi_bit
+      -> 原始 top_pe / pe
+      -> PE 外 global shift / accumulate
+      -> FP mantissa product
+```
+
+当前仿真：
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/sim
+bash run_int_fp_wrapper.sh
+```
+
+已通过：
+
+```text
+SUCCESS: OPT4C INT/FP mode wrapper tests passed.
+```
+
+该仿真包含两层含义：
+
+1. INT 模式下，wrapper 输出与裸 `top_pe` cycle-by-cycle 对比一致，说明 wrapper 没有破坏 INT 功能。
+2. FP 模式下，尾数 full/pruned chunk product 真实经过 `encoder_multi_bit + top_pe` 路径，并与 golden 对齐。
+
+下一步综合脚本：
+
+```text
+OPT3_OPT4C/fp/syn/dc_int_fp_wrapper.tcl
+OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper.sh
+```
+
+综合时应重点比较 `MODE=int` 报告和原始 OPT4C INT 报告，确认新增 mode wrapper 没有降低 INT 目标频率；`MODE=fp` 报告用于观察 FP 外围控制和累加路径的代价。

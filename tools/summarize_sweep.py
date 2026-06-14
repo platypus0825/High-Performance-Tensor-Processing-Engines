@@ -16,6 +16,8 @@ DEFAULT_DESIGNS = [
     ("FP32 7b pipe", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "fp32_mul_7bit_chunk_pipe"),
     ("FP32 7b pipe3", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "fp32_mul_7bit_chunk_pipe3"),
     ("FP32 7b pipe4", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "fp32_mul_7bit_chunk_pipe4"),
+    ("INT/FP wrapper INT", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_int"),
+    ("INT/FP wrapper FP", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_fp"),
 ]
 
 SLACK_RE = re.compile(r"slack\s*\((MET|VIOLATED)\)\s+(-?\d+(?:\.\d+)?)", re.IGNORECASE)
