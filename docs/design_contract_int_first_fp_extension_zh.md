@@ -135,3 +135,20 @@ OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper.sh
 注意：`MODE=int` 报告应只解释 INT 激活模式下的时序。脚本会在完整双模式 wrapper 综合后，对 FP 输入/输出设置 false path，再报告 INT mode timing；否则 `fp_busy`、`fp_done`、`fp_mantissa_product` 等非激活模式输出可能污染 INT 报告。`MODE=fp` 同理会 false-path INT 输入/输出。
 
 综合脚本使用 `compile_ultra -retime`，与原始 OPT4C array 综合脚本保持一致。这个口径很重要：当前 INT mode 的 top path 位于 `shared_top_pe/sparse_pe/operand_b_reg -> shared_top_pe/sparse_pe/acc_carry_reg`，属于 PE 内部路径，而不是 mode mux 或 FP scheduler 路径。如果不用 retiming，单 PE wrapper 的 PE 内部路径会明显慢于此前 `top_pe_column` 的结果，不能直接作为“FP wrapper 降低了 INT 频率”的证据。
+
+为了区分“wrapper 真的拖慢 INT”和“单 PE 综合口径本身不同”，新增裸 `top_pe` baseline 综合脚本：
+
+```text
+OPT3_OPT4C/fp/syn/dc_top_pe_baseline.tcl
+OPT3_OPT4C/fp/syn/sweep_top_pe_baseline.sh
+```
+
+判断方法：
+
+```text
+如果 top_pe_baseline 在 0.59 ns 也违例，且 top path 同样在 PE 内部，
+说明当前单 PE 综合结果不能直接和 N=32 column 的 0.59 ns 结论比较。
+
+如果 top_pe_baseline 能过，但 opt4c_int_fp_mode_wrapper_int 不能过，
+说明 wrapper 边界确实引入了 INT timing cost，需要重构模式切换边界。
+```

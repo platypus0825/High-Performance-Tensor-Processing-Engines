@@ -81,6 +81,7 @@ bash sweep_fp32.sh
 bash sweep_fp32_pipe.sh
 bash sweep_fp32_pipe3.sh
 bash sweep_fp32_pipe4.sh
+bash sweep_top_pe_baseline.sh
 bash sweep_int_fp_wrapper.sh
 ```
 
@@ -251,6 +252,23 @@ MODE=fp  CLK_PERIOD=1.00 dc_shell -64bit -f dc_int_fp_wrapper.tcl > logs/dc_int_
 This keeps area reporting representative of the full INT+FP wrapper while allowing mode-specific timing inspection. In `MODE=int`, FP inputs and outputs are false-pathed; in `MODE=fp`, INT inputs and outputs are false-pathed. This avoids interpreting inactive-mode status/output paths as the active-mode critical path. The script uses `compile_ultra -retime`, matching the original OPT4C array synthesis flow. This matters because the active INT critical path is inside `shared_top_pe/sparse_pe` from `operand_b_reg` to `acc_carry_reg`; without retiming the single-wrapper synthesis reports a much slower PE-internal path and is not comparable with the previous `top_pe_column` result.
 
 The key INT-first check is whether `opt4c_int_fp_mode_wrapper_int` can meet the original OPT4C INT timing target without moving the critical path into FP-specific control. If the top path remains `shared_top_pe/sparse_pe/operand_b_reg -> shared_top_pe/sparse_pe/acc_carry_reg`, the wrapper mux is not the direct critical path; if the path starts before the PE input registers or includes FP scheduler/control logic, the wrapper partition violates the design contract.
+
+Because the first wrapper timing reports still show the active INT top path inside `shared_top_pe/sparse_pe`, a bare single-PE baseline has been added:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+CLK_PERIOD=0.59 dc_shell -64bit -f dc_top_pe_baseline.tcl > logs/dc_top_pe_baseline_0.59.log 2>&1
+```
+
+Interpretation:
+
+```text
+If top_pe_baseline also violates around the same PE-internal path:
+    The single-PE wrapper result is not directly comparable with the previous N=32 top_pe_column result.
+
+If top_pe_baseline meets but opt4c_int_fp_mode_wrapper_int violates:
+    The wrapper integration has introduced timing cost and the mode boundary must be restructured.
+```
 
 ## Bandwidth Table Template
 
