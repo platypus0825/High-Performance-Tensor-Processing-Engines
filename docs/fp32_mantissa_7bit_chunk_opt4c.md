@@ -4,6 +4,22 @@
 
 This document describes a conservative multi-precision extension path for reusing the existing OPT4C signed INT8 PE datapath to compute the mantissa multiplication part of FP32 operations.
 
+## Design Contract
+
+The highest-priority requirement is INT-first execution. The original integer datapath is the main architecture, and floating-point support is an extension mode built around it.
+
+The design must obey these constraints:
+
+```text
+1. INT mode keeps the original OPT4C/INT PE datapath and timing target.
+2. FP mode must not insert normalization, rounding, exponent, pruning, or mode-specific mux logic into the INT PE critical path.
+3. FP32 mantissa multiplication must reuse the existing INT PE path for chunk products.
+4. Extra FP hardware should stay in a wrapper, scheduler, accumulator/reducer, normalizer, rounder, and packer around the PE.
+5. Any pipeline added for FP should improve FP-mode timing or throughput without lowering INT-mode frequency.
+```
+
+Therefore, the current 7-bit chunk design should be interpreted as a reuse-first architecture, not as a standalone FP multiplier competing with the INT datapath. The purpose is to add FP capability while preserving the proven INT path. A Chinese version of this contract is recorded in `docs/design_contract_int_first_fp_extension_zh.md`.
+
 The key idea is:
 
 ```text

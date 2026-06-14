@@ -2,6 +2,19 @@
 
 This project has already passed RTL functional simulation for OPT1-OPT4. The next goal is to prove where each optimization helps, where it pays cost, and whether the dataflow can still be mapped without control, fanout, or bandwidth becoming the new bottleneck.
 
+## Non-Negotiable Design Contract
+
+The multi-precision extension is evaluated under an INT-first contract:
+
+```text
+The original INT/OPT4C datapath is the mainline architecture.
+FP support is an additional mode and must not reduce INT-mode frequency or disturb the existing PE critical path.
+FP32 mantissa multiplication must reuse the INT PE for chunk products.
+Floating-point-specific unpack, scheduling, pruning, global shifting, reduction, normalization, rounding, and packing must remain outside the INT PE.
+```
+
+This changes how FP results should be interpreted. A faster standalone FP wrapper is useful as a timing study, but it is not the final goal if it bypasses the INT PE. The final tradeoff question is whether FP support can be added with bounded wrapper area and extra latency while preserving INT-mode timing and keeping the mantissa product on the INT PE path. The Chinese design contract is recorded in `docs/design_contract_int_first_fp_extension_zh.md`.
+
 ## Evidence Targets
 
 The minimum useful evidence set is:
