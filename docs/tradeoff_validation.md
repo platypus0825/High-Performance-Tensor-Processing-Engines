@@ -373,6 +373,25 @@ the next top path becomes `pe_en_multiplicand_issue_reg -> shared_top_pe/sp_enco
 then the remaining problem is the external issue-register boundary: it converts
 the sparse encoder input logic into a tight register-to-register path.
 
+The preferred hardware direction is to pair mode-specific timing constraints
+with real mode isolation in RTL. In INT mode, FP-only blocks such as the 7-bit
+pair scheduler, FP FSM, chunk accumulator, and product accumulator should be
+held by clock enable or mapped to clock gating. The shared PE must not be gated,
+because INT mode still uses it. This makes the INT-clean constraint correspond
+to real hardware behavior rather than being only a reporting filter:
+
+```text
+mode_fp = 0:
+    FP-only scheduler/accumulator regs hold or are clock-gated
+    shared PE remains active for INT
+
+mode_fp = 1:
+    FP scheduler/accumulator and shared PE are active
+```
+
+Do not hand-code `clk & mode_fp` as a clock. Prefer RTL clock enables and let
+the synthesis flow map them to integrated clock-gating cells when available.
+
 The current shared-PE/pipePE FP-mode path is evaluated with a dedicated
 configuration wrapper:
 
