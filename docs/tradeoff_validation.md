@@ -86,6 +86,7 @@ bash sweep_top_pe_pipe_baseline.sh
 bash sweep_int_fp_wrapper.sh
 bash sweep_int_fp_wrapper_pipepe.sh
 bash sweep_int_fp_wrapper_pipepe_intfirst.sh
+bash sweep_int_fp_wrapper_pipepe_intclean.sh
 bash sweep_column_int_fp_wrapper.sh
 ```
 
@@ -308,9 +309,11 @@ OPT3_OPT4C/fp/sim/run_int_fp_wrapper_pipepe_int.sh
 OPT3_OPT4C/fp/syn/dc_top_pe_pipe_baseline.tcl
 OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe.tcl
 OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe_intfirst.tcl
+OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe_intclean.tcl
 OPT3_OPT4C/fp/syn/sweep_top_pe_pipe_baseline.sh
 OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe.sh
 OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe_intfirst.sh
+OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe_intclean.sh
 ```
 
 Run:
@@ -323,6 +326,7 @@ cd ../syn
 CLK_PERIOD=0.59 dc_shell -64bit -f dc_top_pe_pipe_baseline.tcl > logs/dc_top_pe_pipe_baseline_0.59.log 2>&1
 MODE=int CLK_PERIOD=0.59 dc_shell -64bit -f dc_int_fp_wrapper_pipepe.tcl > logs/dc_int_fp_wrapper_pipepe_int_0.59.log 2>&1
 CLK_PERIOD=0.59 dc_shell -64bit -f dc_int_fp_wrapper_pipepe_intfirst.tcl > logs/dc_int_fp_wrapper_pipepe_intfirst_int_0.59.log 2>&1
+CLK_PERIOD=0.59 dc_shell -64bit -f dc_int_fp_wrapper_pipepe_intclean.tcl > logs/dc_int_fp_wrapper_pipepe_intclean_int_0.59.log 2>&1
 ```
 
 Interpretation:
@@ -356,6 +360,15 @@ register-to-register paths. To isolate the true INT active-mode timing, use
 [get_ports mode_fp]` before `compile_ultra`. Its area is not a full dual-mode
 area number because FP logic can be constant-folded, but its timing is the
 right diagnostic for the INT-first question.
+
+The `intfirst` report still showed FP scheduler internal paths such as
+`fp_scheduler/group_state_reg[1] -> fp_scheduler/a_operand_reg[*]`, meaning
+false-pathing only FP ports is not enough to remove inactive FP sequential
+paths from the mode-specific report. `dc_int_fp_wrapper_pipepe_intclean.tcl`
+therefore also false-paths internal FP scheduler and FP-control registers. If
+the next top path becomes `pe_en_multiplicand_issue_reg -> shared_top_pe/sp_encoder`,
+then the remaining problem is the external issue-register boundary: it converts
+the sparse encoder input logic into a tight register-to-register path.
 
 The next experiment therefore moves sharing from a single `top_pe` to a small `top_pe_column` boundary:
 
