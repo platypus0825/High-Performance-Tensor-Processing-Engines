@@ -151,6 +151,7 @@ Pipeline synthesis results:
 | 2.4 ns | -0.26 | not recorded |
 | 2.0 ns, pipe3 | -0.31 | 13531.134837 |
 | 2.0 ns, pipe4 | -0.01 | 15198.573704 |
+| 2.05 ns, pipe4 | 0.00 | 15158.927235 |
 
 The tightest observed MET point is 2.65 ns, corresponding to about 377.4 MHz. Compared with the combinational 5.3 ns baseline, this is a 2.0x shorter clock period for roughly 1.08% area increase at the tightest MET point:
 
@@ -161,7 +162,7 @@ The tightest observed MET point is 2.65 ns, corresponding to about 377.4 MHz. Co
 
 The result confirms the intended pipeline tradeoff: one extra cycle of latency and extra sequential state substantially shorten the single-cycle timing path. The remaining boundary appears to be between 2.6 ns and 2.65 ns; a finer sweep around 2.62-2.64 ns can locate the practical closing point more accurately.
 
-The deeper pipeline experiments refine this conclusion. `pipe3` split the FP post-processing path but still violated at 2.0 ns by -0.31 ns. Its top path started from `operand_b[3]` and ended at `mantissa_product_s1_reg`, showing that the first mantissa-product stage still combined chunk multiplication and shifted accumulation. `pipe4` then inserted a boundary between the 16 chunk-product registers and the shifted reduction into `mantissa_product`. At 2.0 ns, `pipe4` improves the violation to -0.01 ns with area 15198.573704. The top paths are now distributed across chunk-product generation, shifted reduction, and normalize/round preparation, which indicates a much more balanced FP wrapper pipeline.
+The deeper pipeline experiments refine this conclusion. `pipe3` split the FP post-processing path but still violated at 2.0 ns by -0.31 ns. Its top path started from `operand_b[3]` and ended at `mantissa_product_s1_reg`, showing that the first mantissa-product stage still combined chunk multiplication and shifted accumulation. `pipe4` then inserted a boundary between the 16 chunk-product registers and the shifted reduction into `mantissa_product`. At 2.0 ns, `pipe4` improves the violation to -0.01 ns with area 15198.573704, and it closes at 2.05 ns with area 15158.927235. This corresponds to about 487.8 MHz, a 2.59x speedup over the 5.3 ns combinational baseline and a 1.29x speedup over the 2.65 ns one-boundary pipeline. The cost is a larger FP-only wrapper area and extra latency. The top paths are now distributed across chunk-product generation, shifted reduction, and normalize/round preparation, which indicates a much more balanced FP wrapper pipeline.
 
 ## Bandwidth Table Template
 
