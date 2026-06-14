@@ -1,4 +1,8 @@
-module opt4c_int_fp_mode_wrapper (
+module opt4c_int_fp_mode_wrapper #(
+    parameter FP_CLR_DELAY_CYCLES = 3,
+    parameter FP_BW_DELAY_CYCLES = 4,
+    parameter FP_DRAIN_LIMIT = 5
+) (
     input  logic        clk,
     input  logic        rst_n,
     input  logic        mode_fp,
@@ -130,7 +134,7 @@ encoder_multi_bit fp_encoder (
 );
 
 get_pipeline_mulwidth #(
-    .N(3),
+    .N(FP_CLR_DELAY_CYCLES),
     .WIDTH(1)
 ) fp_clr_delay (
     .clk(clk),
@@ -140,7 +144,7 @@ get_pipeline_mulwidth #(
 );
 
 get_pipeline_mulwidth #(
-    .N(4),
+    .N(FP_BW_DELAY_CYCLES),
     .WIDTH(3)
 ) fp_bw_delay (
     .clk(clk),
@@ -363,7 +367,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                     fp_clr <= 1'b0;
                     fp_operand_b_pre <= 8'd0;
                     drain_count <= drain_count + 3'd1;
-                    if (drain_count == 3'd5) begin
+                    if (drain_count == FP_DRAIN_LIMIT) begin
                         fp_compute_phase <= 1'b0;
                         state <= S_ACC_PAIR;
                     end

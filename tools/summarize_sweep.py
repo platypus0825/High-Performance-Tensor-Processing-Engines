@@ -24,6 +24,7 @@ DEFAULT_DESIGNS = [
     ("INT/FP pipePE INT-first", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_pipepe_intfirst_int"),
     ("INT/FP pipePE INT-clean", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_pipepe_intclean_int"),
     ("INT/FP pipePE FP", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_pipepe_fp"),
+    ("INT/FP pipePE FP-clean", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_pipepe_fpclean_fp"),
     ("Column INT/FP INT", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_column_int_fp_mode_wrapper_int"),
     ("Column INT/FP FP", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_column_int_fp_mode_wrapper_fp"),
 ]

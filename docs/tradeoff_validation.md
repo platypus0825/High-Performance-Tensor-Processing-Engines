@@ -87,6 +87,7 @@ bash sweep_int_fp_wrapper.sh
 bash sweep_int_fp_wrapper_pipepe.sh
 bash sweep_int_fp_wrapper_pipepe_intfirst.sh
 bash sweep_int_fp_wrapper_pipepe_intclean.sh
+bash sweep_int_fp_wrapper_pipepe_fpclean.sh
 bash sweep_column_int_fp_wrapper.sh
 ```
 
@@ -310,10 +311,12 @@ OPT3_OPT4C/fp/syn/dc_top_pe_pipe_baseline.tcl
 OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe.tcl
 OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe_intfirst.tcl
 OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe_intclean.tcl
+OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe_fpclean.tcl
 OPT3_OPT4C/fp/syn/sweep_top_pe_pipe_baseline.sh
 OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe.sh
 OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe_intfirst.sh
 OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe_intclean.sh
+OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe_fpclean.sh
 ```
 
 Run:
@@ -369,6 +372,35 @@ therefore also false-paths internal FP scheduler and FP-control registers. If
 the next top path becomes `pe_en_multiplicand_issue_reg -> shared_top_pe/sp_encoder`,
 then the remaining problem is the external issue-register boundary: it converts
 the sparse encoder input logic into a tight register-to-register path.
+
+The current shared-PE/pipePE FP-mode path is evaluated with a dedicated
+configuration wrapper:
+
+```text
+OPT3_OPT4C/fp/opt4c_int_fp_mode_wrapper_pipepe_cfg.sv
+```
+
+This wrapper keeps the same shared `top_pe` path but uses the pipelined PE
+override and adjusts FP result alignment for the extra PE stage:
+
+```text
+FP_BW_DELAY_CYCLES = 5
+FP_DRAIN_LIMIT     = 6
+```
+
+Run the FP-mode correctness test first:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/sim
+bash run_int_fp_wrapper_pipepe_fp.sh
+```
+
+Then run FP-mode timing:
+
+```bash
+cd ../syn
+PERIODS="1.5 2.0 2.5 3.0 4.0 5.0" bash sweep_int_fp_wrapper_pipepe_fpclean.sh
+```
 
 The next experiment therefore moves sharing from a single `top_pe` to a small `top_pe_column` boundary:
 
