@@ -83,6 +83,7 @@ bash sweep_fp32_pipe3.sh
 bash sweep_fp32_pipe4.sh
 bash sweep_top_pe_baseline.sh
 bash sweep_int_fp_wrapper.sh
+bash sweep_column_int_fp_wrapper.sh
 ```
 
 Summarize the generated reports from the project root:
@@ -273,6 +274,55 @@ If top_pe_baseline meets but opt4c_int_fp_mode_wrapper_int violates:
 ```
 
 This condition was observed for the direct-mux shared wrapper. The wrapper has therefore been restructured with a registered mux before `pe_issue_reg`. If this still fails, the next structural fallback is an INT-protected dual-instance wrapper: `int_top_pe` for INT mode and `fp_top_pe` for FP mode.
+
+The registered-mux single-`top_pe` attempt still violates the INT target in the current reports: at 0.59 ns the user-observed `opt4c_int_fp_mode_wrapper_int` result is about -0.81 ns slack with area 16605.006790. This means the problem is not just the local delay of one mux. The full dual-mode wrapper changes the optimization context around the already tight PE-internal `operand_b_reg -> acc_carry_reg` path, and the extra mode boundary/load is enough to lose the original `top_pe_baseline` timing.
+
+The next experiment therefore moves sharing from a single `top_pe` to a small `top_pe_column` boundary:
+
+```text
+mode_fp = 0:
+    INT column inputs -> column-boundary mode mux -> shared top_pe_column -> INT column result
+
+mode_fp = 1:
+    FP mantissa chunks
+      -> choose one A chunk row
+      -> encoder_multi_bit
+      -> broadcast encoded A to shared top_pe_column
+      -> place B0..B3 chunks on four column lanes
+      -> fuse each lane result
+      -> global shift by 7 * (row_index + lane_index)
+      -> accumulate 4 rows into the 48-bit mantissa product
+```
+
+The prototype is:
+
+```text
+OPT3_OPT4C/fp/opt4c_column_int_fp_mode_wrapper.sv
+```
+
+This keeps `pe.v` and `top_pe_column.v` unchanged. It uses the existing column broadcast structure instead of inserting mode-specific logic inside each PE. In FP mode, one A chunk is shared across four lanes and the four B chunks occupy lanes 0-3, so each row computes up to four `(Ai, Bj)` chunk products in parallel. Diagonal pruning is applied before the B chunks are issued: pairs with `i + j < min_group` are zeroed and never contribute to the accumulated FP mantissa product.
+
+The corresponding simulation and synthesis entry points are:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/sim
+bash run_column_int_fp_wrapper.sh
+
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
+MODE=int CLK_PERIOD=0.59 dc_shell -64bit -f dc_column_int_fp_wrapper.tcl > logs/dc_column_int_fp_wrapper_int_0.59.log 2>&1
+MODE=fp  CLK_PERIOD=1.00 dc_shell -64bit -f dc_column_int_fp_wrapper.tcl > logs/dc_column_int_fp_wrapper_fp_1.00.log 2>&1
+```
+
+Interpretation:
+
+```text
+If column-wrapper INT mode gets much closer to the top_pe/top_pe_column baseline:
+    Moving the mode boundary outward is the right direction.
+
+If it still violates badly:
+    A fully shared INT/FP datapath is likely incompatible with the no-INT-regression contract at this clock.
+    The next serious option is an INT-protected structure: keep the original INT column untouched and add a separate FP reuse path, accepting extra area for INT Fmax isolation.
+```
 
 ## Bandwidth Table Template
 

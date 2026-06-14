@@ -19,6 +19,8 @@ DEFAULT_DESIGNS = [
     ("top_pe baseline", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "top_pe_baseline"),
     ("INT/FP wrapper INT", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_int"),
     ("INT/FP wrapper FP", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_int_fp_mode_wrapper_fp"),
+    ("Column INT/FP INT", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_column_int_fp_mode_wrapper_int"),
+    ("Column INT/FP FP", "OPT3_OPT4C/fp/syn/outputs_fp32/saed32rvt_tt0p85v25c", "opt4c_column_int_fp_mode_wrapper_fp"),
 ]
 
 SLACK_RE = re.compile(r"slack\s*\((MET|VIOLATED)\)\s+(-?\d+(?:\.\d+)?)", re.IGNORECASE)
