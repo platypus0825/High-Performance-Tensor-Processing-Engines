@@ -239,7 +239,7 @@ SUCCESS: OPT4C INT/FP mode wrapper tests passed.
 
 This simulation checks two contract points. In INT mode, the wrapper is compared cycle-by-cycle against a bare `top_pe`, confirming that the wrapper does not change INT functional behavior. In FP mode, full and pruned 7-bit mantissa products are computed through the same `encoder_multi_bit + top_pe` path and compared against the pruned golden product.
 
-Synthesis support has been added in `OPT3_OPT4C/fp/syn/dc_int_fp_wrapper.tcl`. The script compiles the full dual-mode wrapper first, then applies `mode_fp` case analysis only for reporting:
+Synthesis support has been added in `OPT3_OPT4C/fp/syn/dc_int_fp_wrapper.tcl`. The script compiles the full dual-mode wrapper first, then applies `mode_fp` case analysis and mode-specific false paths only for reporting:
 
 ```bash
 cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/syn
@@ -248,7 +248,7 @@ MODE=int CLK_PERIOD=0.59 dc_shell -64bit -f dc_int_fp_wrapper.tcl > logs/dc_int_
 MODE=fp  CLK_PERIOD=1.00 dc_shell -64bit -f dc_int_fp_wrapper.tcl > logs/dc_int_fp_wrapper_fp_1.00.log 2>&1
 ```
 
-This keeps area reporting representative of the full INT+FP wrapper while allowing mode-specific timing inspection. The key INT-first check is whether `opt4c_int_fp_mode_wrapper_int` can meet the original OPT4C INT timing target without moving the critical path into FP-specific control.
+This keeps area reporting representative of the full INT+FP wrapper while allowing mode-specific timing inspection. In `MODE=int`, FP inputs and outputs are false-pathed; in `MODE=fp`, INT inputs and outputs are false-pathed. This avoids interpreting inactive-mode status/output paths as the active-mode critical path. The key INT-first check is whether `opt4c_int_fp_mode_wrapper_int` can meet the original OPT4C INT timing target without moving the critical path into FP-specific control.
 
 ## Bandwidth Table Template
 

@@ -60,15 +60,20 @@ set_input_delay  $input_delay_value  -clock clk $input_ports
 set_output_delay $output_delay_value -clock clk [all_outputs]
 set_false_path -from [get_ports rst_n]
 
-# Compile the complete dual-mode wrapper first. Apply mode case analysis only
-# for reporting so the area remains the full INT+FP wrapper area.
+# Compile the complete dual-mode wrapper first. Apply mode case analysis and
+# mode-specific false paths only for reporting so the area remains the full
+# INT+FP wrapper area.
 compile_ultra
 
 if {$my_mode == "int"} {
     set_case_analysis 0 [get_ports mode_fp]
+    set_false_path -from [get_ports fp_*]
+    set_false_path -to [get_ports fp_*]
     set my_current_file_name "${my_current_file_name}_int"
 } elseif {$my_mode == "fp"} {
     set_case_analysis 1 [get_ports mode_fp]
+    set_false_path -from [get_ports int_*]
+    set_false_path -to [get_ports int_*]
     set my_current_file_name "${my_current_file_name}_fp"
 } else {
     echo "Unknown MODE=${my_mode}; expected int or fp."
