@@ -195,6 +195,8 @@ Selected results:
 
 The most useful pruning family is diagonal-group pruning. Dropping only low-weight groups keeps the high-weight cross terms and gives better accuracy than simply truncating both operands to their top chunks. For example, dropping G0-G2 uses about 9.91 active pairs with P99 relative error around 3.63e-06, while keeping only the top 3 chunks uses about 8.91 active pairs but has P99 relative error around 2.18e-05. Raw pair-product magnitude is not a good pruning criterion because high-weight top chunks can have small raw products before the global shift.
 
+The RTL scheduler now includes `min_group` to implement this policy directly. `min_group=0` keeps the exact full-product behavior. Larger values skip lower diagonal groups at scheduling time, so the pruned FP mode issues fewer chunk pairs without changing the INT PE.
+
 ## Bandwidth Table Template
 
 Fill this table using the exact configuration used in synthesis and simulation.

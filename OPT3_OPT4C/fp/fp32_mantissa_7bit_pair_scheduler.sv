@@ -4,6 +4,7 @@ module fp32_mantissa_7bit_pair_scheduler (
     input  logic        start,
     input  logic [23:0] mantissa_a,
     input  logic [23:0] mantissa_b,
+    input  logic [2:0]  min_group,
     output logic        busy,
     output logic        valid,
     output logic        done,
@@ -21,6 +22,7 @@ logic [7:0] a_chunk [0:3];
 logic [7:0] b_chunk [0:3];
 logic [23:0] mantissa_a_reg;
 logic [23:0] mantissa_b_reg;
+logic [2:0] min_group_reg;
 logic [1:0] slot_index;
 logic [2:0] group_next;
 logic [1:0] slot_next;
@@ -31,6 +33,7 @@ logic       last_slot;
 logic       last_pair;
 logic       current_pair_valid;
 logic [3:0] current_pair_index;
+logic       current_group_enabled;
 
 integer i;
 integer j;
@@ -55,7 +58,7 @@ always_comb begin
     for (i = 0; i < 4; i = i + 1) begin
         for (j = 0; j < 4; j = j + 1) begin
             pair_index = (i * 4) + j;
-            pair_valid_mask[pair_index] = (a_chunk[i] != 8'd0) && (b_chunk[j] != 8'd0);
+            pair_valid_mask[pair_index] = (a_chunk[i] != 8'd0) && (b_chunk[j] != 8'd0) && ((i + j) >= min_group_reg);
             group_valid_mask[i + j] = group_valid_mask[i + j] | pair_valid_mask[pair_index];
         end
     end
@@ -133,7 +136,8 @@ end
 
 assign sel_shift_amount = {3'd0, group_index} * 6'd7;
 assign current_pair_index = (sel_a_chunk_index * 4) + sel_b_chunk_index;
-assign current_pair_valid = pair_valid_mask[current_pair_index];
+assign current_group_enabled = (group_index >= min_group_reg);
+assign current_pair_valid = current_group_enabled && pair_valid_mask[current_pair_index];
 assign last_pair = (group_index == 3'd6) && last_slot;
 
 always_ff @(posedge clk or negedge rst_n) begin
@@ -143,6 +147,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         done <= 1'b0;
         group_index <= 3'd0;
         slot_index <= 2'd0;
+        min_group_reg <= 3'd0;
         mantissa_a_reg <= 24'd0;
         mantissa_b_reg <= 24'd0;
         a_operand <= 8'd0;
@@ -156,8 +161,9 @@ always_ff @(posedge clk or negedge rst_n) begin
 
         if (start && !busy) begin
             busy <= 1'b1;
-            group_index <= 3'd0;
+            group_index <= (min_group > 3'd6) ? 3'd6 : min_group;
             slot_index <= 2'd0;
+            min_group_reg <= (min_group > 3'd6) ? 3'd6 : min_group;
             mantissa_a_reg <= mantissa_a;
             mantissa_b_reg <= mantissa_b;
         end else if (busy) begin

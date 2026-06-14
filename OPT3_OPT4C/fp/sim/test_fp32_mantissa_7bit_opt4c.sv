@@ -7,6 +7,7 @@ logic        clk;
 logic        rst_n;
 
 logic        start;
+logic [2:0]  min_group;
 logic [23:0] mantissa_a;
 logic [23:0] mantissa_b;
 wire  [47:0] product;
@@ -73,6 +74,7 @@ fp32_mantissa_7bit_pair_scheduler dut_sched (
     .start(start),
     .mantissa_a(mantissa_a),
     .mantissa_b(mantissa_b),
+    .min_group(min_group),
     .busy(sched_busy),
     .valid(sched_valid),
     .done(sched_done),
@@ -156,6 +158,7 @@ task initialize;
     begin
         rst_n = 1'b0;
         start = 1'b0;
+        min_group = 3'd0;
         mantissa_a = 24'd0;
         mantissa_b = 24'd0;
         multiplicand = 8'd0;
@@ -216,6 +219,7 @@ task check_case;
         test_id = test_id + 1;
         mantissa_a = a;
         mantissa_b = b;
+        min_group = 3'd0;
         #1;
 
         golden = {24'd0, a} * {24'd0, b};
@@ -386,4 +390,3 @@ task run_opt4c_product;
 endtask
 
 endmodule
-

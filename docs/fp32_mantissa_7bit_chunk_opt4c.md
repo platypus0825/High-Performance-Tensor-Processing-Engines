@@ -637,4 +637,14 @@ The initial Monte Carlo result suggests diagonal-group pruning is the cleanest p
 pair_valid[i][j] = A_valid[i] & B_valid[j] & (i+j >= min_group)
 ```
 
-This preserves high-weight cross terms and avoids modifying the INT PE.
+This preserves high-weight cross terms and avoids modifying the INT PE. The RTL scheduler exposes this control as `min_group`:
+
+```text
+min_group = 0: full 16-pair FP32 mantissa product
+min_group = 1: drop G0
+min_group = 2: drop G0-G1
+min_group = 3: drop G0-G2
+...
+```
+
+When `start` is accepted, the scheduler latches `min_group` and begins issuing pairs from that diagonal group. Thus pruning reduces both arithmetic work and FP-mode scheduling latency while leaving `min_group=0` behavior bit-exact.
