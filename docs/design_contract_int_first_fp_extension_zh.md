@@ -91,19 +91,21 @@ mode == FP32:
 OPT3_OPT4C/fp/opt4c_int_fp_mode_wrapper.sv
 ```
 
-它不修改原始 `top_pe.v` 和 `pe.v`，而是在 PE 外层做模式选择：
+它不修改原始 `top_pe.v` 和 `pe.v`。在最初的单实例共享 wrapper 中，`mode_fp` mux 直接放在同一个 `top_pe` 输入前；综合显示裸 `top_pe_baseline` 在 0.59 ns 可以收敛，而 shared wrapper 的 `MODE=int` 不能收敛。因此当前先尝试 registered-mux 结构：
 
 ```text
 mode_fp = 0:
-    INT 输入直接进入原始 top_pe，输出 INT PE 结果。
+    INT 输入 -> mode mux -> pe_issue_reg -> shared_top_pe -> INT PE 结果。
 
 mode_fp = 1:
     FP32 mantissa -> 7-bit chunk scheduler
       -> encoder_multi_bit
-      -> 原始 top_pe / pe
+      -> mode mux -> pe_issue_reg -> shared_top_pe / pe
       -> PE 外 global shift / accumulate
       -> FP mantissa product
 ```
+
+这里的“复用 INT PE”指 FP 尾数 chunk product 仍然使用原始 `top_pe/pe` 这种 INT PE 数据通路，而不是新写一套普通乘法器。registered-mux 的目的不是完全消除 mux，而是把 mux 从 `top_pe` 输入边界前移到 issue/register 边界，使 mux 路径终止在 `pe_issue_reg`，不直接贴住 PE 内部 compressor 路径。
 
 当前仿真：
 
@@ -152,3 +154,5 @@ OPT3_OPT4C/fp/syn/sweep_top_pe_baseline.sh
 如果 top_pe_baseline 能过，但 opt4c_int_fp_mode_wrapper_int 不能过，
 说明 wrapper 边界确实引入了 INT timing cost，需要重构模式切换边界。
 ```
+
+当前采用的重构方式是把原本贴在 `top_pe` 输入前的组合 mode mux 前移到 `pe_issue_reg` 前。如果 registered-mux 仍然不能让 `MODE=int` 收敛，则说明单实例共享方案的时序代价仍然过高，需要回到 INT-protected 双实例结构：INT mode 走独立 `int_top_pe`，FP mode 走独立 `fp_top_pe`，以面积换取 INT Fmax 隔离。

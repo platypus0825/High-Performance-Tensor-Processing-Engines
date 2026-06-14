@@ -214,16 +214,18 @@ The RTL scheduler now includes `min_group` to implement this policy directly. `m
 
 ## INT/FP Mode Wrapper Milestone
 
-The first combined wrapper is `OPT3_OPT4C/fp/opt4c_int_fp_mode_wrapper.sv`. It keeps the original `top_pe` and `pe` modules unchanged and selects the source of the PE inputs at the wrapper boundary:
+The first combined wrapper is `OPT3_OPT4C/fp/opt4c_int_fp_mode_wrapper.sv`. It keeps the original `top_pe` and `pe` modules unchanged. The initial single-instance sharing attempt selected the source of one `top_pe` directly at the wrapper boundary, but timing showed that `top_pe_baseline` met 0.59 ns while the shared wrapper INT mode did not. The current wrapper therefore tries a registered-mux boundary:
 
 ```text
 mode_fp = 0:
-    INT wrapper inputs -> original top_pe -> INT result
+    INT wrapper inputs -> mode mux -> pe_issue_reg -> shared_top_pe -> INT result
 
 mode_fp = 1:
-    FP mantissa scheduler -> encoder_multi_bit -> original top_pe
+    FP mantissa scheduler -> encoder_multi_bit -> mode mux -> pe_issue_reg -> shared_top_pe
       -> PE-external shift/accumulate -> FP mantissa product
 ```
+
+This keeps a single shared `top_pe` instance, but moves the mode mux before a wrapper-owned issue register. The intended timing effect is that the mux path ends at `pe_issue_reg`, while the original PE-internal path starts from the registered `shared_top_pe/sparse_pe/operand_b_reg`.
 
 The corresponding simulation is:
 
@@ -269,6 +271,8 @@ If top_pe_baseline also violates around the same PE-internal path:
 If top_pe_baseline meets but opt4c_int_fp_mode_wrapper_int violates:
     The wrapper integration has introduced timing cost and the mode boundary must be restructured.
 ```
+
+This condition was observed for the direct-mux shared wrapper. The wrapper has therefore been restructured with a registered mux before `pe_issue_reg`. If this still fails, the next structural fallback is an INT-protected dual-instance wrapper: `int_top_pe` for INT mode and `fp_top_pe` for FP mode.
 
 ## Bandwidth Table Template
 

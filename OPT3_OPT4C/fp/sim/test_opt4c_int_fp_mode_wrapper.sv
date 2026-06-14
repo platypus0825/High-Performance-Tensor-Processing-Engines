@@ -29,6 +29,11 @@ wire  [6:0]  fp_group_valid_mask;
 wire  [1:0]  ref_position;
 wire  [2:0]  ref_cal_cycle;
 wire  [51:0] ref_pe_result;
+logic        ref_int_clr;
+logic [7:0]  ref_int_en_multiplicand;
+logic [3:0]  ref_int_sign_en_multiplicand;
+logic        ref_int_encode_valid;
+logic [7:0]  ref_int_operand_b;
 
 integer test_id;
 
@@ -59,11 +64,11 @@ opt4c_int_fp_mode_wrapper dut (
 top_pe ref_int_pe (
     .clk(clk),
     .rst_n(rst_n),
-    .clr(int_clr),
-    .en_multiplicand(int_en_multiplicand),
-    .sign_en_multiplicand(int_sign_en_multiplicand),
-    .encode_valid(int_encode_valid),
-    .operand_b(int_operand_b),
+    .clr(ref_int_clr),
+    .en_multiplicand(ref_int_en_multiplicand),
+    .sign_en_multiplicand(ref_int_sign_en_multiplicand),
+    .encode_valid(ref_int_encode_valid),
+    .operand_b(ref_int_operand_b),
     .position(ref_position),
     .cal_cycle(ref_cal_cycle),
     .pe_result(ref_pe_result)
@@ -116,6 +121,22 @@ task initialize;
         repeat (4) @(posedge clk);
     end
 endtask
+
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        ref_int_clr <= 1'b0;
+        ref_int_en_multiplicand <= 8'd0;
+        ref_int_sign_en_multiplicand <= 4'd0;
+        ref_int_encode_valid <= 1'b0;
+        ref_int_operand_b <= 8'd0;
+    end else begin
+        ref_int_clr <= int_clr;
+        ref_int_en_multiplicand <= int_en_multiplicand;
+        ref_int_sign_en_multiplicand <= int_sign_en_multiplicand;
+        ref_int_encode_valid <= int_encode_valid;
+        ref_int_operand_b <= int_operand_b;
+    end
+end
 
 task check_int_passthrough;
     integer cycle;

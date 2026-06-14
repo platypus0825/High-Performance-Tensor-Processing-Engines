@@ -86,6 +86,11 @@ logic [7:0]  pe_en_multiplicand;
 logic [3:0]  pe_sign_en_multiplicand;
 logic        pe_encode_valid;
 logic [7:0]  pe_operand_b;
+logic        pe_clr_issue;
+logic [7:0]  pe_en_multiplicand_issue;
+logic [3:0]  pe_sign_en_multiplicand_issue;
+logic        pe_encode_valid_issue;
+logic [7:0]  pe_operand_b_issue;
 wire  [1:0]  pe_position;
 wire  [2:0]  pe_cal_cycle;
 wire  [51:0] pe_result;
@@ -147,11 +152,11 @@ get_pipeline_mulwidth #(
 top_pe shared_top_pe (
     .clk(clk),
     .rst_n(rst_n),
-    .clr(pe_clr),
-    .en_multiplicand(pe_en_multiplicand),
-    .sign_en_multiplicand(pe_sign_en_multiplicand),
-    .encode_valid(pe_encode_valid),
-    .operand_b(pe_operand_b),
+    .clr(pe_clr_issue),
+    .en_multiplicand(pe_en_multiplicand_issue),
+    .sign_en_multiplicand(pe_sign_en_multiplicand_issue),
+    .encode_valid(pe_encode_valid_issue),
+    .operand_b(pe_operand_b_issue),
     .position(pe_position),
     .cal_cycle(pe_cal_cycle),
     .pe_result(pe_result)
@@ -190,8 +195,18 @@ end
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         fp_operand_b_to_pe <= 8'd0;
+        pe_clr_issue <= 1'b0;
+        pe_en_multiplicand_issue <= 8'd0;
+        pe_sign_en_multiplicand_issue <= 4'd0;
+        pe_encode_valid_issue <= 1'b0;
+        pe_operand_b_issue <= 8'd0;
     end else begin
         fp_operand_b_to_pe <= fp_operand_b_pre;
+        pe_clr_issue <= pe_clr;
+        pe_en_multiplicand_issue <= pe_en_multiplicand;
+        pe_sign_en_multiplicand_issue <= pe_sign_en_multiplicand;
+        pe_encode_valid_issue <= pe_encode_valid;
+        pe_operand_b_issue <= pe_operand_b;
     end
 end
 
