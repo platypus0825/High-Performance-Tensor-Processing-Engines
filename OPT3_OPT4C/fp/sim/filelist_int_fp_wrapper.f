@@ -1,0 +1,10 @@
+../../pe/sim/timescale.sv
+../../pe/DW02_tree.sv
+../../pe/encoder_multi_bit.v
+../../pe/pe.v
+../../pe/sparse_encoder.v
+../../pe/get_pipline_mulwidth.v
+../../pe/top_pe.v
+../fp32_mantissa_7bit_pair_scheduler.sv
+../opt4c_int_fp_mode_wrapper.sv
+test_opt4c_int_fp_mode_wrapper.sv
