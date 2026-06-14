@@ -164,6 +164,37 @@ The result confirms the intended pipeline tradeoff: one extra cycle of latency a
 
 The deeper pipeline experiments refine this conclusion. `pipe3` split the FP post-processing path but still violated at 2.0 ns by -0.31 ns. Its top path started from `operand_b[3]` and ended at `mantissa_product_s1_reg`, showing that the first mantissa-product stage still combined chunk multiplication and shifted accumulation. `pipe4` then inserted a boundary between the 16 chunk-product registers and the shifted reduction into `mantissa_product`. At 2.0 ns, `pipe4` improves the violation to -0.01 ns with area 15198.573704, and it closes at 2.05 ns with area 15158.927235. This corresponds to about 487.8 MHz, a 2.59x speedup over the 5.3 ns combinational baseline and a 1.29x speedup over the 2.65 ns one-boundary pipeline. The cost is a larger FP-only wrapper area and extra latency. The top paths are now distributed across chunk-product generation, shifted reduction, and normalize/round preparation, which indicates a much more balanced FP wrapper pipeline.
 
+## FP32 Chunk Pruning Accuracy
+
+Pruning was first evaluated at the mantissa-product level using `tools/evaluate_fp32_chunk_pruning.py`. The script randomly samples normalized 24-bit FP32 mantissas, computes the exact 48-bit product, then compares it with approximate products that skip selected 7-bit chunk pairs. The reported relative error is:
+
+```text
+abs(exact_product - pruned_product) / exact_product
+```
+
+Reference run:
+
+```bash
+python3 tools/evaluate_fp32_chunk_pruning.py --samples 100000 --seed 1 --csv pruning_eval_100k.csv
+```
+
+Selected results:
+
+| Strategy | Mean active pairs | Mean relative error | P99 relative error | P99 accuracy bits |
+| --- | ---: | ---: | ---: | ---: |
+| full | 15.81 | 0 | 0 | inf |
+| drop G0 | 14.83 | 2.76e-11 | 1.15e-10 | 33.01 |
+| drop G0-G1 | 12.86 | 7.12e-09 | 2.34e-08 | 25.35 |
+| drop G0-G2 | 9.91 | 1.34e-06 | 3.63e-06 | 18.07 |
+| drop G0-G3 | 5.95 | 1.23e-04 | 3.51e-04 | 11.48 |
+| drop G0-G4 | 2.98 | 8.31e-03 | 2.77e-02 | 5.17 |
+| keep top 3 chunks only | 8.91 | 1.05e-05 | 2.18e-05 | 15.49 |
+| keep top 2 chunks only | 3.97 | 1.36e-03 | 2.80e-03 | 8.48 |
+| min aligned contribution bit 28 | 9.46 | 1.78e-06 | 4.76e-06 | 17.68 |
+| min aligned contribution bit 35 | 5.54 | 1.75e-04 | 4.98e-04 | 10.97 |
+
+The most useful pruning family is diagonal-group pruning. Dropping only low-weight groups keeps the high-weight cross terms and gives better accuracy than simply truncating both operands to their top chunks. For example, dropping G0-G2 uses about 9.91 active pairs with P99 relative error around 3.63e-06, while keeping only the top 3 chunks uses about 8.91 active pairs but has P99 relative error around 2.18e-05. Raw pair-product magnitude is not a good pruning criterion because high-weight top chunks can have small raw products before the global shift.
+
 ## Bandwidth Table Template
 
 Fill this table using the exact configuration used in synthesis and simulation.

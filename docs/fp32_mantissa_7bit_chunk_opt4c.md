@@ -614,3 +614,27 @@ cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/s
 CLK_PERIOD=2.0 dc_shell -64bit -f dc_fp32_mul_pipe3.tcl > logs/dc_fp32_pipe3_2.0.log 2>&1
 CLK_PERIOD=2.0 dc_shell -64bit -f dc_fp32_mul_pipe4.tcl > logs/dc_fp32_pipe4_2.0.log 2>&1
 ```
+
+## Pruning Evaluation
+
+Before adding pruning control to RTL, evaluate candidate policies at the mantissa-product level:
+
+```bash
+python3 tools/evaluate_fp32_chunk_pruning.py --samples 100000 --seed 1 --csv pruning_eval_100k.csv
+```
+
+The default strategies include:
+
+```text
+drop_low_groups_N: skip diagonal groups G0..G(N-1)
+top_chunks_N: keep only the top N chunks of both operands
+min_aligned_bit_N: keep chunk products whose shifted contribution is at least 2^N
+```
+
+The initial Monte Carlo result suggests diagonal-group pruning is the cleanest precision/latency knob for time-multiplexed FP mode. It maps directly to the scheduler by masking low-weight groups:
+
+```text
+pair_valid[i][j] = A_valid[i] & B_valid[j] & (i+j >= min_group)
+```
+
+This preserves high-weight cross terms and avoids modifying the INT PE.
