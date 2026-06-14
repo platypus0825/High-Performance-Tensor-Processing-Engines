@@ -326,7 +326,6 @@ always_ff @(posedge clk or negedge rst_n) begin
 
                     if ((pe_cal_cycle <= bw_cycle) || (bw_cycle == 3'd4)) begin
                         fp_clr <= 1'b0;
-                        fp_operand_b_pre <= 8'd0;
                         state <= S_BW_GAP;
                     end else begin
                         bw_cycle <= bw_cycle + 3'd1;
