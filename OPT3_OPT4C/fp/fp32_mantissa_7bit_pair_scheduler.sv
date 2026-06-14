@@ -23,6 +23,7 @@ logic [7:0] b_chunk [0:3];
 logic [23:0] mantissa_a_reg;
 logic [23:0] mantissa_b_reg;
 logic [2:0] min_group_reg;
+logic [2:0] group_state;
 logic [1:0] slot_index;
 logic [2:0] group_next;
 logic [1:0] slot_next;
@@ -68,7 +69,7 @@ always_comb begin
     sel_a_chunk_index = 2'd0;
     sel_b_chunk_index = 2'd0;
 
-    case (group_index)
+    case (group_state)
         3'd0: begin
             sel_a_chunk_index = 2'd0;
             sel_b_chunk_index = 2'd0;
@@ -115,7 +116,7 @@ always_comb begin
 end
 
 always_comb begin
-    case (group_index)
+    case (group_state)
         3'd0: last_slot = 1'b1;
         3'd1: last_slot = (slot_index == 2'd1);
         3'd2: last_slot = (slot_index == 2'd2);
@@ -126,25 +127,26 @@ always_comb begin
     endcase
 
     if (last_slot) begin
-        group_next = group_index + 3'd1;
+        group_next = group_state + 3'd1;
         slot_next = 2'd0;
     end else begin
-        group_next = group_index;
+        group_next = group_state;
         slot_next = slot_index + 2'd1;
     end
 end
 
-assign sel_shift_amount = {3'd0, group_index} * 6'd7;
+assign sel_shift_amount = {3'd0, group_state} * 6'd7;
 assign current_pair_index = (sel_a_chunk_index * 4) + sel_b_chunk_index;
-assign current_group_enabled = (group_index >= min_group_reg);
+assign current_group_enabled = (group_state >= min_group_reg);
 assign current_pair_valid = current_group_enabled && pair_valid_mask[current_pair_index];
-assign last_pair = (group_index == 3'd6) && last_slot;
+assign last_pair = (group_state == 3'd6) && last_slot;
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         busy <= 1'b0;
         valid <= 1'b0;
         done <= 1'b0;
+        group_state <= 3'd0;
         group_index <= 3'd0;
         slot_index <= 2'd0;
         min_group_reg <= 3'd0;
@@ -161,7 +163,8 @@ always_ff @(posedge clk or negedge rst_n) begin
 
         if (start && !busy) begin
             busy <= 1'b1;
-            group_index <= (min_group > 3'd6) ? 3'd6 : min_group;
+            group_state <= (min_group > 3'd6) ? 3'd6 : min_group;
+            group_index <= 3'd0;
             slot_index <= 2'd0;
             min_group_reg <= (min_group > 3'd6) ? 3'd6 : min_group;
             mantissa_a_reg <= mantissa_a;
@@ -172,14 +175,15 @@ always_ff @(posedge clk or negedge rst_n) begin
             b_operand <= b_chunk[sel_b_chunk_index];
             a_chunk_index <= sel_a_chunk_index;
             b_chunk_index <= sel_b_chunk_index;
+            group_index <= group_state;
             shift_amount <= sel_shift_amount;
             if (last_pair) begin
                 busy <= 1'b0;
                 done <= 1'b1;
-                group_index <= 3'd0;
+                group_state <= 3'd0;
                 slot_index <= 2'd0;
             end else begin
-                group_index <= group_next;
+                group_state <= group_next;
                 slot_index <= slot_next;
             end
         end
