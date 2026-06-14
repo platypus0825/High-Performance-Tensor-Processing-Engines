@@ -82,7 +82,9 @@ bash sweep_fp32_pipe.sh
 bash sweep_fp32_pipe3.sh
 bash sweep_fp32_pipe4.sh
 bash sweep_top_pe_baseline.sh
+bash sweep_top_pe_pipe_baseline.sh
 bash sweep_int_fp_wrapper.sh
+bash sweep_int_fp_wrapper_pipepe.sh
 bash sweep_column_int_fp_wrapper.sh
 ```
 
@@ -276,6 +278,59 @@ If top_pe_baseline meets but opt4c_int_fp_mode_wrapper_int violates:
 This condition was observed for the direct-mux shared wrapper. The wrapper has therefore been restructured with a registered mux before `pe_issue_reg`. If this still fails, the next structural fallback is an INT-protected dual-instance wrapper: `int_top_pe` for INT mode and `fp_top_pe` for FP mode.
 
 The registered-mux single-`top_pe` attempt still violates the INT target in the current reports: at 0.59 ns the user-observed `opt4c_int_fp_mode_wrapper_int` result is about -0.81 ns slack with area 16605.006790. This means the problem is not just the local delay of one mux. The full dual-mode wrapper changes the optimization context around the already tight PE-internal `operand_b_reg -> acc_carry_reg` path, and the extra mode boundary/load is enough to lose the original `top_pe_baseline` timing.
+
+The next diagnostic follows the pipeline style used in multi-mode PE papers more closely. Instead of only registering the external mode mux, it adds an experimental `pe_pipelined` variant that cuts the original PE-internal path between partial-product selection and the `DW02_tree` compressor:
+
+```text
+original pe:
+    operand_b_reg / encoder_position_reg
+      -> select {-2B, B, 2B, -B}
+      -> DW02_tree(sum, carry, selected partial product)
+      -> acc_sum / acc_carry
+
+experimental pe_pipelined:
+    operand_b_reg / encoder_position_reg
+      -> select {-2B, B, 2B, -B}
+      -> mux_extend_b_s1 register
+      -> DW02_tree(sum, carry, registered partial product)
+      -> acc_sum / acc_carry
+```
+
+The purpose is to test the paper-like claim that input-side mode control can work when the arithmetic path is staged deeply enough. This is not yet the final FP-correct wrapper, because the extra PE stage also requires FP-side `clr`, bit-weight shift, and drain alignment to be retuned. The first experiment is INT-mode only, because the contract says INT frequency is the highest priority.
+
+Files:
+
+```text
+OPT3_OPT4C/fp/pe_pipelined.v
+OPT3_OPT4C/fp/top_pe_pipe_override.v
+OPT3_OPT4C/fp/sim/run_int_fp_wrapper_pipepe_int.sh
+OPT3_OPT4C/fp/syn/dc_top_pe_pipe_baseline.tcl
+OPT3_OPT4C/fp/syn/dc_int_fp_wrapper_pipepe.tcl
+OPT3_OPT4C/fp/syn/sweep_top_pe_pipe_baseline.sh
+OPT3_OPT4C/fp/syn/sweep_int_fp_wrapper_pipepe.sh
+```
+
+Run:
+
+```bash
+cd /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/sim
+bash run_int_fp_wrapper_pipepe_int.sh
+
+cd ../syn
+CLK_PERIOD=0.59 dc_shell -64bit -f dc_top_pe_pipe_baseline.tcl > logs/dc_top_pe_pipe_baseline_0.59.log 2>&1
+MODE=int CLK_PERIOD=0.59 dc_shell -64bit -f dc_int_fp_wrapper_pipepe.tcl > logs/dc_int_fp_wrapper_pipepe_int_0.59.log 2>&1
+```
+
+Interpretation:
+
+```text
+If pipePE INT mode improves strongly:
+    The failed single-instance wrappers were mainly exposing an insufficiently staged PE arithmetic path.
+    Continue by retuning FP schedule alignment for the extra PE stage.
+
+If pipePE INT mode is still a large violation:
+    The issue is not only PE-internal staging; inspect hierarchy, wrapper load, and synthesis constraints before adding more FP logic.
+```
 
 The next experiment therefore moves sharing from a single `top_pe` to a small `top_pe_column` boundary:
 
