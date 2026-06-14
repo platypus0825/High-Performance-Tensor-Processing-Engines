@@ -248,7 +248,9 @@ MODE=int CLK_PERIOD=0.59 dc_shell -64bit -f dc_int_fp_wrapper.tcl > logs/dc_int_
 MODE=fp  CLK_PERIOD=1.00 dc_shell -64bit -f dc_int_fp_wrapper.tcl > logs/dc_int_fp_wrapper_fp_1.00.log 2>&1
 ```
 
-This keeps area reporting representative of the full INT+FP wrapper while allowing mode-specific timing inspection. In `MODE=int`, FP inputs and outputs are false-pathed; in `MODE=fp`, INT inputs and outputs are false-pathed. This avoids interpreting inactive-mode status/output paths as the active-mode critical path. The key INT-first check is whether `opt4c_int_fp_mode_wrapper_int` can meet the original OPT4C INT timing target without moving the critical path into FP-specific control.
+This keeps area reporting representative of the full INT+FP wrapper while allowing mode-specific timing inspection. In `MODE=int`, FP inputs and outputs are false-pathed; in `MODE=fp`, INT inputs and outputs are false-pathed. This avoids interpreting inactive-mode status/output paths as the active-mode critical path. The script uses `compile_ultra -retime`, matching the original OPT4C array synthesis flow. This matters because the active INT critical path is inside `shared_top_pe/sparse_pe` from `operand_b_reg` to `acc_carry_reg`; without retiming the single-wrapper synthesis reports a much slower PE-internal path and is not comparable with the previous `top_pe_column` result.
+
+The key INT-first check is whether `opt4c_int_fp_mode_wrapper_int` can meet the original OPT4C INT timing target without moving the critical path into FP-specific control. If the top path remains `shared_top_pe/sparse_pe/operand_b_reg -> shared_top_pe/sparse_pe/acc_carry_reg`, the wrapper mux is not the direct critical path; if the path starts before the PE input registers or includes FP scheduler/control logic, the wrapper partition violates the design contract.
 
 ## Bandwidth Table Template
 

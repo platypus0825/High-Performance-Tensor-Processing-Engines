@@ -63,7 +63,7 @@ set_false_path -from [get_ports rst_n]
 # Compile the complete dual-mode wrapper first. Apply mode case analysis and
 # mode-specific false paths only for reporting so the area remains the full
 # INT+FP wrapper area.
-compile_ultra
+compile_ultra -retime
 
 if {$my_mode == "int"} {
     set_case_analysis 0 [get_ports mode_fp]
