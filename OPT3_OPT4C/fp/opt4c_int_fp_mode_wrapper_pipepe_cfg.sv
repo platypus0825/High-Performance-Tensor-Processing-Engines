@@ -27,7 +27,8 @@ module opt4c_int_fp_mode_wrapper_pipepe_cfg (
 opt4c_int_fp_mode_wrapper #(
     .FP_CLR_DELAY_CYCLES(4),
     .FP_BW_DELAY_CYCLES(5),
-    .FP_DRAIN_LIMIT(9)
+    .FP_DRAIN_LIMIT(9),
+    .FP_CAPTURE_ON_CLR_FALL(1)
 ) wrapper (
     .clk(clk),
     .rst_n(rst_n),

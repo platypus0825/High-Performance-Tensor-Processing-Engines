@@ -1,7 +1,8 @@
 module opt4c_int_fp_mode_wrapper #(
     parameter FP_CLR_DELAY_CYCLES = 3,
     parameter FP_BW_DELAY_CYCLES = 4,
-    parameter FP_DRAIN_LIMIT = 5
+    parameter FP_DRAIN_LIMIT = 5,
+    parameter FP_CAPTURE_ON_CLR_FALL = 0
 ) (
     input  logic        clk,
     input  logic        rst_n,
@@ -76,6 +77,8 @@ wire         fp_encoded_multiplicand_valid;
 
 logic        fp_clr;
 wire         fp_clr_to_pe;
+logic        fp_clr_to_pe_d;
+wire         fp_capture_result;
 logic [2:0]  fp_bw_count;
 wire  [2:0]  fp_bw_count_delayed;
 logic [7:0]  fp_en_multiplicand;
@@ -103,6 +106,10 @@ logic signed [25:0] fp_fuse_result;
 logic signed [31:0] fp_shift_result;
 logic signed [31:0] fp_chunk_acc;
 logic [63:0] fp_product_acc;
+
+assign fp_capture_result = (FP_CAPTURE_ON_CLR_FALL != 0) ?
+                           (fp_clr_to_pe_d && !fp_clr_to_pe) :
+                           !fp_clr_to_pe;
 
 fp32_mantissa_7bit_pair_scheduler fp_scheduler (
     .clk(clk),
@@ -231,6 +238,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_multiplicand <= 8'd0;
         fp_multiplicand_valid <= 1'b0;
         fp_clr <= 1'b0;
+        fp_clr_to_pe_d <= 1'b0;
         fp_bw_count <= 3'd0;
         fp_encode_valid <= 1'b0;
         fp_operand_b_pre <= 8'd0;
@@ -246,8 +254,9 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_encode_valid <= 1'b0;
         fp_done <= 1'b0;
         fp_result_valid <= 1'b0;
+        fp_clr_to_pe_d <= fp_clr_to_pe;
 
-        if (mode_fp && fp_compute_phase && !fp_clr_to_pe) begin
+        if (mode_fp && fp_compute_phase && fp_capture_result) begin
             fp_chunk_acc <= fp_chunk_acc + fp_shift_result;
         end
 
