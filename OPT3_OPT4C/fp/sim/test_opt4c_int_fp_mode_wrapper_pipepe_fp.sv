@@ -17,6 +17,7 @@ wire  [15:0] fp_pair_valid_mask;
 wire  [6:0]  fp_group_valid_mask;
 
 integer test_id;
+integer trace_cycle;
 
 opt4c_int_fp_mode_wrapper_pipepe_cfg dut (
     .clk(clk),
@@ -45,6 +46,51 @@ opt4c_int_fp_mode_wrapper_pipepe_cfg dut (
 initial begin
     clk = 1'b0;
     forever #(clk_T / 2) clk = ~clk;
+end
+
+always @(posedge clk) begin
+    if (!rst_n) begin
+        trace_cycle <= 0;
+    end else if ($test$plusargs("TRACE_PIPEPE_FP") && (test_id <= 1) && (fp_busy || fp_done)) begin
+        trace_cycle <= trace_cycle + 1;
+        $display("[PIPEPE_FP_TRACE] t=%0t cyc=%0d test=%0d state=%0d pair=%0d/%0d bw=%0d bwcy=%0d drain=%0d a=%h b=%h shift=%0d enc=%h",
+                 $time, trace_cycle, test_id,
+                 dut.wrapper.state,
+                 dut.wrapper.pair_index,
+                 dut.wrapper.pair_total,
+                 dut.wrapper.bw_index,
+                 dut.wrapper.bw_cycle,
+                 dut.wrapper.drain_count,
+                 dut.wrapper.current_a,
+                 dut.wrapper.current_b,
+                 dut.wrapper.current_shift,
+                 dut.wrapper.encoded_a);
+        $display("[PIPEPE_FP_TRACE]   ctrl fp_clr=%b clr_to_pe=%b pe_clr_issue=%b enc_valid=%b enc_issue=%b cap_tok=%b cap_tok_d=%b cap=%b shift_bw=%0d",
+                 dut.wrapper.fp_clr,
+                 dut.wrapper.fp_clr_to_pe,
+                 dut.wrapper.pe_clr_issue,
+                 dut.wrapper.fp_encode_valid,
+                 dut.wrapper.pe_encode_valid_issue,
+                 dut.wrapper.fp_capture_token,
+                 dut.wrapper.fp_capture_token_delayed,
+                 dut.wrapper.fp_capture_result,
+                 dut.wrapper.fp_shift_bw_count);
+        $display("[PIPEPE_FP_TRACE]   pe pos=%0d cal=%0d b_pre=%h b_to_pe=%h b_issue=%h pe_b=%h enc_pos=%0d clr_s1=%b mux_s1=%0d result=%h fuse=%0d shift_res=%0d chunk_acc=%0d prod_acc=%h",
+                 dut.wrapper.pe_position,
+                 dut.wrapper.pe_cal_cycle,
+                 dut.wrapper.fp_operand_b_pre,
+                 dut.wrapper.fp_operand_b_to_pe,
+                 dut.wrapper.pe_operand_b_issue,
+                 dut.wrapper.shared_top_pe.sparse_pe.operand_b,
+                 dut.wrapper.shared_top_pe.sparse_pe.encoder_position,
+                 dut.wrapper.shared_top_pe.sparse_pe.clr_s1,
+                 dut.wrapper.shared_top_pe.sparse_pe.mux_extend_b_s1,
+                 dut.wrapper.pe_result,
+                 dut.wrapper.fp_fuse_result,
+                 dut.wrapper.fp_shift_result,
+                 dut.wrapper.fp_chunk_acc,
+                 dut.wrapper.fp_product_acc);
+    end
 end
 
 initial begin
@@ -76,6 +122,7 @@ task initialize;
         fp_mantissa_b = 24'd0;
         fp_min_group = 3'd0;
         test_id = 0;
+        trace_cycle = 0;
 
         repeat (4) @(posedge clk);
         rst_n = 1'b1;
