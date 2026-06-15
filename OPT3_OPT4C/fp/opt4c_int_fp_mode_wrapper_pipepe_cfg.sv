@@ -28,7 +28,9 @@ opt4c_int_fp_mode_wrapper #(
     .FP_CLR_DELAY_CYCLES(4),
     .FP_BW_DELAY_CYCLES(5),
     .FP_DRAIN_LIMIT(9),
-    .FP_CAPTURE_AT_DRAIN_END(1)
+    .FP_CAPTURE_AT_DRAIN_END(0),
+    .FP_CAPTURE_WITH_TOKEN(1),
+    .FP_CAPTURE_TOKEN_DELAY_CYCLES(7)
 ) wrapper (
     .clk(clk),
     .rst_n(rst_n),

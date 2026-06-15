@@ -2,7 +2,9 @@ module opt4c_int_fp_mode_wrapper #(
     parameter FP_CLR_DELAY_CYCLES = 3,
     parameter FP_BW_DELAY_CYCLES = 4,
     parameter FP_DRAIN_LIMIT = 5,
-    parameter FP_CAPTURE_AT_DRAIN_END = 0
+    parameter FP_CAPTURE_AT_DRAIN_END = 0,
+    parameter FP_CAPTURE_WITH_TOKEN = 0,
+    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 1
 ) (
     input  logic        clk,
     input  logic        rst_n,
@@ -80,6 +82,11 @@ wire         fp_clr_to_pe;
 wire         fp_capture_result;
 logic [2:0]  fp_bw_count;
 wire  [2:0]  fp_bw_count_delayed;
+logic        fp_capture_token;
+wire         fp_capture_token_delayed;
+logic [2:0]  fp_capture_bw_count;
+wire  [2:0]  fp_capture_bw_count_delayed;
+wire  [2:0]  fp_shift_bw_count;
 logic [7:0]  fp_en_multiplicand;
 logic [3:0]  fp_sign_en_multiplicand;
 logic        fp_encode_valid;
@@ -106,9 +113,12 @@ logic signed [31:0] fp_shift_result;
 logic signed [31:0] fp_chunk_acc;
 logic [63:0] fp_product_acc;
 
-assign fp_capture_result = (FP_CAPTURE_AT_DRAIN_END != 0) ?
+assign fp_capture_result = (FP_CAPTURE_WITH_TOKEN != 0) ? fp_capture_token_delayed :
+                           (FP_CAPTURE_AT_DRAIN_END != 0) ?
                            ((state == S_PAIR_DRAIN) && (drain_count == FP_DRAIN_LIMIT)) :
                            !fp_clr_to_pe;
+assign fp_shift_bw_count = (FP_CAPTURE_WITH_TOKEN != 0) ? fp_capture_bw_count_delayed :
+                           fp_bw_count_delayed;
 
 fp32_mantissa_7bit_pair_scheduler fp_scheduler (
     .clk(clk),
@@ -159,6 +169,26 @@ get_pipeline_mulwidth #(
     .pipeline_signal(fp_bw_count_delayed)
 );
 
+get_pipeline_mulwidth #(
+    .N(FP_CAPTURE_TOKEN_DELAY_CYCLES),
+    .WIDTH(1)
+) fp_capture_token_delay (
+    .clk(clk),
+    .rst_n(rst_n),
+    .signal(fp_capture_token),
+    .pipeline_signal(fp_capture_token_delayed)
+);
+
+get_pipeline_mulwidth #(
+    .N(FP_CAPTURE_TOKEN_DELAY_CYCLES),
+    .WIDTH(3)
+) fp_capture_bw_delay (
+    .clk(clk),
+    .rst_n(rst_n),
+    .signal(fp_capture_bw_count),
+    .pipeline_signal(fp_capture_bw_count_delayed)
+);
+
 top_pe shared_top_pe (
     .clk(clk),
     .rst_n(rst_n),
@@ -199,7 +229,7 @@ assign fp_sign_en_multiplicand = {3'd0, encoded_a[8]};
 
 always_comb begin
     fp_fuse_result = $signed(pe_result[25:0]) + $signed(pe_result[51:26]);
-    fp_shift_result = $signed(fp_fuse_result << {fp_bw_count_delayed, 1'b0});
+    fp_shift_result = $signed(fp_fuse_result << {fp_shift_bw_count, 1'b0});
 end
 
 always_ff @(posedge clk or negedge rst_n) begin
@@ -238,6 +268,8 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_multiplicand_valid <= 1'b0;
         fp_clr <= 1'b0;
         fp_bw_count <= 3'd0;
+        fp_capture_token <= 1'b0;
+        fp_capture_bw_count <= 3'd0;
         fp_encode_valid <= 1'b0;
         fp_operand_b_pre <= 8'd0;
         fp_compute_phase <= 1'b0;
@@ -252,6 +284,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_encode_valid <= 1'b0;
         fp_done <= 1'b0;
         fp_result_valid <= 1'b0;
+        fp_capture_token <= 1'b0;
 
         if (mode_fp && fp_compute_phase && fp_capture_result) begin
             fp_chunk_acc <= fp_chunk_acc + fp_shift_result;
@@ -264,6 +297,8 @@ always_ff @(posedge clk or negedge rst_n) begin
             pair_index <= 5'd0;
             fp_clr <= 1'b0;
             fp_bw_count <= 3'd0;
+            fp_capture_token <= 1'b0;
+            fp_capture_bw_count <= 3'd0;
             fp_operand_b_pre <= 8'd0;
             fp_compute_phase <= 1'b0;
         end else begin
@@ -277,6 +312,8 @@ always_ff @(posedge clk or negedge rst_n) begin
                     fp_mantissa_product <= 48'd0;
                     fp_clr <= 1'b0;
                     fp_bw_count <= 3'd0;
+                    fp_capture_token <= 1'b0;
+                    fp_capture_bw_count <= 3'd0;
                     fp_operand_b_pre <= 8'd0;
                     fp_compute_phase <= 1'b0;
                     if (fp_start) begin
@@ -350,6 +387,8 @@ always_ff @(posedge clk or negedge rst_n) begin
                     end
 
                     if ((pe_cal_cycle <= bw_cycle) || (bw_cycle == 3'd4)) begin
+                        fp_capture_token <= 1'b1;
+                        fp_capture_bw_count <= {1'b0, bw_index};
                         fp_clr <= 1'b0;
                         state <= S_BW_GAP;
                     end else begin
