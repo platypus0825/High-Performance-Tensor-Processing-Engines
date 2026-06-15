@@ -1,5 +1,9 @@
 module opt4c_column_int_fp_mode_wrapper #(
-    parameter N = 4
+    parameter N = 4,
+    parameter FP_CLR_DELAY_CYCLES = 4,
+    parameter FP_BW_DELAY_CYCLES = 5,
+    parameter FP_DRAIN_LIMIT = 9,
+    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 5
 ) (
     input  logic             clk,
     input  logic             rst_n,
@@ -24,6 +28,8 @@ module opt4c_column_int_fp_mode_wrapper #(
     output logic [47:0]      fp_mantissa_product
 );
 
+localparam int FP_LANES = 4;
+
 localparam logic [3:0] S_IDLE       = 4'd0;
 localparam logic [3:0] S_LOAD_ROW   = 4'd1;
 localparam logic [3:0] S_ENC_START  = 4'd2;
@@ -37,15 +43,15 @@ localparam logic [3:0] S_DONE       = 4'd9;
 
 logic [3:0] state;
 
-logic [7:0] a_chunk [0:3];
-logic [7:0] b_chunk [0:3];
+logic [7:0] a_chunk [0:FP_LANES-1];
+logic [7:0] b_chunk [0:FP_LANES-1];
 logic [1:0] row_index;
 logic [7:0] current_a;
-logic [7:0] current_b [0:3];
+logic [7:0] current_b [0:FP_LANES-1];
 logic [8:0] encoded_a;
 logic [1:0] bw_index;
 logic [2:0] bw_cycle;
-logic [2:0] drain_count;
+logic [4:0] drain_count;
 
 logic        fp_multiplicand_valid;
 logic [7:0]  fp_multiplicand;
@@ -54,8 +60,14 @@ wire         fp_encoded_multiplicand_valid;
 
 logic        fp_clr;
 wire         fp_clr_to_column;
+wire         fp_capture_result;
 logic [2:0]  fp_bw_count;
 wire  [2:0]  fp_bw_count_delayed;
+logic        fp_capture_token;
+wire         fp_capture_token_delayed;
+logic [2:0]  fp_capture_bw_count;
+wire  [2:0]  fp_capture_bw_count_delayed;
+wire  [2:0]  fp_shift_bw_count;
 logic [7:0]  fp_en_multiplicand;
 logic [3:0]  fp_sign_en_multiplicand;
 logic        fp_encode_valid;
@@ -68,19 +80,22 @@ logic [7:0]  column_en_multiplicand;
 logic [3:0]  column_sign_en_multiplicand;
 logic        column_encode_valid;
 logic [8*N-1:0] column_operand_b;
+logic        column_clr_issue;
+logic [7:0]  column_en_multiplicand_issue;
+logic [3:0]  column_sign_en_multiplicand_issue;
+logic        column_encode_valid_issue;
+logic [8*N-1:0] column_operand_b_issue;
 wire  [1:0]  column_position;
 wire  [2:0]  column_cal_cycle;
 wire  [52*N-1:0] column_pe_result;
 
-logic signed [25:0] fp_fuse_result [0:3];
-logic signed [31:0] fp_shift_result [0:3];
-logic signed [31:0] fp_chunk_acc [0:3];
+logic signed [25:0] fp_fuse_result [0:FP_LANES-1];
+logic signed [31:0] fp_shift_result [0:FP_LANES-1];
+logic signed [31:0] fp_chunk_acc [0:FP_LANES-1];
 logic [63:0] fp_product_acc;
 logic [63:0] fp_row_accumulated_product;
 
-integer fuse_lane;
-integer acc_lane;
-integer seq_lane;
+integer lane;
 
 always_comb begin
     a_chunk[0] = {1'b0, fp_mantissa_a[6:0]};
@@ -94,6 +109,9 @@ always_comb begin
     b_chunk[3] = {5'b0, fp_mantissa_b[23:21]};
 end
 
+assign fp_capture_result = fp_capture_token_delayed;
+assign fp_shift_bw_count = fp_capture_bw_count_delayed;
+
 encoder_multi_bit fp_encoder (
     .clk(clk),
     .rst_n(rst_n),
@@ -104,7 +122,7 @@ encoder_multi_bit fp_encoder (
 );
 
 get_pipeline_mulwidth #(
-    .N(3),
+    .N(FP_CLR_DELAY_CYCLES),
     .WIDTH(1)
 ) fp_clr_delay (
     .clk(clk),
@@ -114,7 +132,7 @@ get_pipeline_mulwidth #(
 );
 
 get_pipeline_mulwidth #(
-    .N(4),
+    .N(FP_BW_DELAY_CYCLES),
     .WIDTH(3)
 ) fp_bw_delay (
     .clk(clk),
@@ -123,16 +141,36 @@ get_pipeline_mulwidth #(
     .pipeline_signal(fp_bw_count_delayed)
 );
 
-top_pe_column #(
+get_pipeline_mulwidth #(
+    .N(FP_CAPTURE_TOKEN_DELAY_CYCLES),
+    .WIDTH(1)
+) fp_capture_token_delay (
+    .clk(clk),
+    .rst_n(rst_n),
+    .signal(fp_capture_token),
+    .pipeline_signal(fp_capture_token_delayed)
+);
+
+get_pipeline_mulwidth #(
+    .N(FP_CAPTURE_TOKEN_DELAY_CYCLES),
+    .WIDTH(3)
+) fp_capture_bw_delay (
+    .clk(clk),
+    .rst_n(rst_n),
+    .signal(fp_capture_bw_count),
+    .pipeline_signal(fp_capture_bw_count_delayed)
+);
+
+top_pe_column_pipe #(
     .N(N)
 ) shared_column (
     .clk(clk),
     .rst_n(rst_n),
-    .clr(column_clr),
-    .en_multiplicand(column_en_multiplicand),
-    .sign_en_multiplicand(column_sign_en_multiplicand),
-    .encode_valid(column_encode_valid),
-    .operand_b(column_operand_b),
+    .clr(column_clr_issue),
+    .en_multiplicand(column_en_multiplicand_issue),
+    .sign_en_multiplicand(column_sign_en_multiplicand_issue),
+    .encode_valid(column_encode_valid_issue),
+    .operand_b(column_operand_b_issue),
     .position(column_position),
     .cal_cycle(column_cal_cycle),
     .pe_result(column_pe_result)
@@ -162,26 +200,36 @@ end
 assign fp_sign_en_multiplicand = {3'd0, encoded_a[8]};
 
 always_comb begin
-    for (fuse_lane = 0; fuse_lane < 4; fuse_lane = fuse_lane + 1) begin
-        fp_fuse_result[fuse_lane] = $signed(column_pe_result[52*fuse_lane +: 26]) +
-                                    $signed(column_pe_result[52*fuse_lane+26 +: 26]);
-        fp_shift_result[fuse_lane] = $signed(fp_fuse_result[fuse_lane] << {fp_bw_count_delayed, 1'b0});
+    for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
+        fp_fuse_result[lane] = $signed(column_pe_result[52*lane +: 26]) +
+                               $signed(column_pe_result[52*lane+26 +: 26]);
+        fp_shift_result[lane] = $signed(fp_fuse_result[lane] << {fp_shift_bw_count, 1'b0});
     end
 end
 
 always_comb begin
     fp_row_accumulated_product = fp_product_acc;
-    for (acc_lane = 0; acc_lane < 4; acc_lane = acc_lane + 1) begin
+    for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
         fp_row_accumulated_product = fp_row_accumulated_product +
-            ({32'd0, fp_chunk_acc[acc_lane]} << (7 * (row_index + acc_lane)));
+            ({32'd0, fp_chunk_acc[lane]} << (7 * (row_index + lane)));
     end
 end
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         fp_operand_b_to_column <= {8*N{1'b0}};
+        column_clr_issue <= 1'b0;
+        column_en_multiplicand_issue <= 8'd0;
+        column_sign_en_multiplicand_issue <= 4'd0;
+        column_encode_valid_issue <= 1'b0;
+        column_operand_b_issue <= {8*N{1'b0}};
     end else begin
         fp_operand_b_to_column <= fp_operand_b_pre;
+        column_clr_issue <= column_clr;
+        column_en_multiplicand_issue <= column_en_multiplicand;
+        column_sign_en_multiplicand_issue <= column_sign_en_multiplicand;
+        column_encode_valid_issue <= column_encode_valid;
+        column_operand_b_issue <= column_operand_b;
     end
 end
 
@@ -193,11 +241,13 @@ always_ff @(posedge clk or negedge rst_n) begin
         encoded_a <= 9'd0;
         bw_index <= 2'd0;
         bw_cycle <= 3'd0;
-        drain_count <= 3'd0;
+        drain_count <= 5'd0;
         fp_multiplicand <= 8'd0;
         fp_multiplicand_valid <= 1'b0;
         fp_clr <= 1'b0;
         fp_bw_count <= 3'd0;
+        fp_capture_token <= 1'b0;
+        fp_capture_bw_count <= 3'd0;
         fp_encode_valid <= 1'b0;
         fp_operand_b_pre <= {8*N{1'b0}};
         fp_compute_phase <= 1'b0;
@@ -205,19 +255,20 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_mantissa_product <= 48'd0;
         fp_done <= 1'b0;
         fp_result_valid <= 1'b0;
-        for (seq_lane = 0; seq_lane < 4; seq_lane = seq_lane + 1) begin
-            current_b[seq_lane] <= 8'd0;
-            fp_chunk_acc[seq_lane] <= 32'sd0;
+        for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
+            current_b[lane] <= 8'd0;
+            fp_chunk_acc[lane] <= 32'sd0;
         end
     end else begin
         fp_multiplicand_valid <= 1'b0;
         fp_encode_valid <= 1'b0;
         fp_done <= 1'b0;
         fp_result_valid <= 1'b0;
+        fp_capture_token <= 1'b0;
 
-        if (mode_fp && fp_compute_phase && !fp_clr_to_column) begin
-            for (seq_lane = 0; seq_lane < 4; seq_lane = seq_lane + 1) begin
-                fp_chunk_acc[seq_lane] <= fp_chunk_acc[seq_lane] + fp_shift_result[seq_lane];
+        if (mode_fp && fp_compute_phase && fp_capture_result) begin
+            for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
+                fp_chunk_acc[lane] <= fp_chunk_acc[lane] + fp_shift_result[lane];
             end
         end
 
@@ -225,6 +276,8 @@ always_ff @(posedge clk or negedge rst_n) begin
             state <= S_IDLE;
             fp_clr <= 1'b0;
             fp_bw_count <= 3'd0;
+            fp_capture_token <= 1'b0;
+            fp_capture_bw_count <= 3'd0;
             fp_operand_b_pre <= {8*N{1'b0}};
             fp_compute_phase <= 1'b0;
         end else begin
@@ -235,6 +288,8 @@ always_ff @(posedge clk or negedge rst_n) begin
                     fp_mantissa_product <= 48'd0;
                     fp_clr <= 1'b0;
                     fp_bw_count <= 3'd0;
+                    fp_capture_token <= 1'b0;
+                    fp_capture_bw_count <= 3'd0;
                     fp_operand_b_pre <= {8*N{1'b0}};
                     fp_compute_phase <= 1'b0;
                     if (fp_start) begin
@@ -244,10 +299,10 @@ always_ff @(posedge clk or negedge rst_n) begin
 
                 S_LOAD_ROW: begin
                     current_a <= a_chunk[row_index];
-                    for (seq_lane = 0; seq_lane < 4; seq_lane = seq_lane + 1) begin
-                        current_b[seq_lane] <= (((row_index + seq_lane) >= fp_min_group) &&
-                                                (a_chunk[row_index] != 8'd0)) ? b_chunk[seq_lane] : 8'd0;
-                        fp_chunk_acc[seq_lane] <= 32'sd0;
+                    for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
+                        current_b[lane] <= (((row_index + lane) >= fp_min_group) &&
+                                            (a_chunk[row_index] != 8'd0)) ? b_chunk[lane] : 8'd0;
+                        fp_chunk_acc[lane] <= 32'sd0;
                     end
                     fp_clr <= 1'b0;
                     fp_bw_count <= 3'd0;
@@ -283,12 +338,14 @@ always_ff @(posedge clk or negedge rst_n) begin
                 S_BW_RUN: begin
                     fp_operand_b_pre <= {8*N{1'b0}};
                     if (column_cal_cycle != 3'd0) begin
-                        for (seq_lane = 0; seq_lane < 4; seq_lane = seq_lane + 1) begin
-                            fp_operand_b_pre[8*seq_lane +: 8] <= (column_position == 2'd0) ? current_b[seq_lane] : 8'd0;
+                        for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
+                            fp_operand_b_pre[8*lane +: 8] <= (column_position == 2'd0) ? current_b[lane] : 8'd0;
                         end
                     end
 
                     if ((column_cal_cycle <= bw_cycle) || (bw_cycle == 3'd4)) begin
+                        fp_capture_token <= 1'b1;
+                        fp_capture_bw_count <= {1'b0, bw_index};
                         fp_clr <= 1'b0;
                         state <= S_BW_GAP;
                     end else begin
@@ -300,7 +357,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                     fp_clr <= 1'b0;
                     fp_operand_b_pre <= {8*N{1'b0}};
                     if (bw_index == 2'd3) begin
-                        drain_count <= 3'd0;
+                        drain_count <= 5'd0;
                         state <= S_ROW_DRAIN;
                     end else begin
                         bw_index <= bw_index + 2'd1;
@@ -311,8 +368,8 @@ always_ff @(posedge clk or negedge rst_n) begin
                 S_ROW_DRAIN: begin
                     fp_clr <= 1'b0;
                     fp_operand_b_pre <= {8*N{1'b0}};
-                    drain_count <= drain_count + 3'd1;
-                    if (drain_count == 3'd5) begin
+                    drain_count <= drain_count + 5'd1;
+                    if (drain_count == FP_DRAIN_LIMIT) begin
                         fp_compute_phase <= 1'b0;
                         state <= S_ACC_ROW;
                     end
