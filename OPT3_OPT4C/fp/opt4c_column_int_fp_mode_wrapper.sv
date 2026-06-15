@@ -95,7 +95,9 @@ logic signed [31:0] fp_chunk_acc [0:FP_LANES-1];
 logic [63:0] fp_product_acc;
 logic [63:0] fp_row_accumulated_product;
 
-integer lane;
+integer fuse_lane;
+integer acc_lane;
+integer seq_lane;
 
 always_comb begin
     a_chunk[0] = {1'b0, fp_mantissa_a[6:0]};
@@ -200,18 +202,18 @@ end
 assign fp_sign_en_multiplicand = {3'd0, encoded_a[8]};
 
 always_comb begin
-    for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
-        fp_fuse_result[lane] = $signed(column_pe_result[52*lane +: 26]) +
-                               $signed(column_pe_result[52*lane+26 +: 26]);
-        fp_shift_result[lane] = $signed(fp_fuse_result[lane] << {fp_shift_bw_count, 1'b0});
+    for (fuse_lane = 0; fuse_lane < FP_LANES; fuse_lane = fuse_lane + 1) begin
+        fp_fuse_result[fuse_lane] = $signed(column_pe_result[52*fuse_lane +: 26]) +
+                                    $signed(column_pe_result[52*fuse_lane+26 +: 26]);
+        fp_shift_result[fuse_lane] = $signed(fp_fuse_result[fuse_lane] << {fp_shift_bw_count, 1'b0});
     end
 end
 
 always_comb begin
     fp_row_accumulated_product = fp_product_acc;
-    for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
+    for (acc_lane = 0; acc_lane < FP_LANES; acc_lane = acc_lane + 1) begin
         fp_row_accumulated_product = fp_row_accumulated_product +
-            ({32'd0, fp_chunk_acc[lane]} << (7 * (row_index + lane)));
+            ({32'd0, fp_chunk_acc[acc_lane]} << (7 * (row_index + acc_lane)));
     end
 end
 
@@ -255,9 +257,9 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_mantissa_product <= 48'd0;
         fp_done <= 1'b0;
         fp_result_valid <= 1'b0;
-        for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
-            current_b[lane] <= 8'd0;
-            fp_chunk_acc[lane] <= 32'sd0;
+        for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
+            current_b[seq_lane] <= 8'd0;
+            fp_chunk_acc[seq_lane] <= 32'sd0;
         end
     end else begin
         fp_multiplicand_valid <= 1'b0;
@@ -267,8 +269,8 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_capture_token <= 1'b0;
 
         if (mode_fp && fp_compute_phase && fp_capture_result) begin
-            for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
-                fp_chunk_acc[lane] <= fp_chunk_acc[lane] + fp_shift_result[lane];
+            for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
+                fp_chunk_acc[seq_lane] <= fp_chunk_acc[seq_lane] + fp_shift_result[seq_lane];
             end
         end
 
@@ -299,10 +301,10 @@ always_ff @(posedge clk or negedge rst_n) begin
 
                 S_LOAD_ROW: begin
                     current_a <= a_chunk[row_index];
-                    for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
-                        current_b[lane] <= (((row_index + lane) >= fp_min_group) &&
-                                            (a_chunk[row_index] != 8'd0)) ? b_chunk[lane] : 8'd0;
-                        fp_chunk_acc[lane] <= 32'sd0;
+                    for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
+                        current_b[seq_lane] <= (((row_index + seq_lane) >= fp_min_group) &&
+                                                (a_chunk[row_index] != 8'd0)) ? b_chunk[seq_lane] : 8'd0;
+                        fp_chunk_acc[seq_lane] <= 32'sd0;
                     end
                     fp_clr <= 1'b0;
                     fp_bw_count <= 3'd0;
@@ -338,8 +340,8 @@ always_ff @(posedge clk or negedge rst_n) begin
                 S_BW_RUN: begin
                     fp_operand_b_pre <= {8*N{1'b0}};
                     if (column_cal_cycle != 3'd0) begin
-                        for (lane = 0; lane < FP_LANES; lane = lane + 1) begin
-                            fp_operand_b_pre[8*lane +: 8] <= (column_position == 2'd0) ? current_b[lane] : 8'd0;
+                        for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
+                            fp_operand_b_pre[8*seq_lane +: 8] <= (column_position == 2'd0) ? current_b[seq_lane] : 8'd0;
                         end
                     end
 

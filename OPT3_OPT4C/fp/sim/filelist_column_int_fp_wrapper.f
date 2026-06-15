@@ -1,9 +1,9 @@
 ../../pe/sim/timescale.sv
 ../../pe/DW02_tree.sv
 ../../pe/encoder_multi_bit.v
-../../pe/pe.v
 ../../pe/sparse_encoder.v
 ../../pe/get_pipline_mulwidth.v
-../../array/top_pe_column.v
+../pe_pipelined.v
+../top_pe_column_pipe_override.v
 ../opt4c_column_int_fp_mode_wrapper.sv
 test_opt4c_column_int_fp_mode_wrapper.sv
