@@ -67,7 +67,7 @@ logic [5:0] current_shift;
 logic [8:0] encoded_a;
 logic [1:0] bw_index;
 logic [2:0] bw_cycle;
-logic [2:0] drain_count;
+logic [4:0] drain_count;
 
 logic        fp_multiplicand_valid;
 logic [7:0]  fp_multiplicand;
@@ -227,7 +227,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         encoded_a <= 9'd0;
         bw_index <= 2'd0;
         bw_cycle <= 3'd0;
-        drain_count <= 3'd0;
+        drain_count <= 5'd0;
         fp_multiplicand <= 8'd0;
         fp_multiplicand_valid <= 1'b0;
         fp_clr <= 1'b0;
@@ -355,7 +355,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                     fp_clr <= 1'b0;
                     fp_operand_b_pre <= 8'd0;
                     if (bw_index == 2'd3) begin
-                        drain_count <= 3'd0;
+                        drain_count <= 5'd0;
                         state <= S_PAIR_DRAIN;
                     end else begin
                         bw_index <= bw_index + 2'd1;
@@ -366,7 +366,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                 S_PAIR_DRAIN: begin
                     fp_clr <= 1'b0;
                     fp_operand_b_pre <= 8'd0;
-                    drain_count <= drain_count + 3'd1;
+                    drain_count <= drain_count + 5'd1;
                     if (drain_count == FP_DRAIN_LIMIT) begin
                         fp_compute_phase <= 1'b0;
                         state <= S_ACC_PAIR;
