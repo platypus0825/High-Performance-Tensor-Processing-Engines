@@ -68,12 +68,22 @@ foreach fp_reg_pattern {
     drain_*_reg*
     fp_*_reg*
     state_reg*
+    shared_*_reg*
 } {
     set fp_regs [get_cells -hierarchical -quiet $fp_reg_pattern]
     if {[sizeof_collection $fp_regs] > 0} {
         set_false_path -from $fp_regs
         set_false_path -to $fp_regs
     }
+}
+
+# The shared backend produces completed lane/MAC and FP accumulation results.
+# It is intentionally behind pipeline registers and is not the original INT
+# carry-save PE boundary. Exclude these backend outputs from the INT-main-path
+# boundary report so this script answers: "can the INT column still run fast?"
+set backend_outputs [get_ports -quiet {int_lane_result* int_mac_result* fp_*}]
+if {[sizeof_collection $backend_outputs] > 0} {
+    set_false_path -to $backend_outputs
 }
 
 # Keep the shared pipePE column visible as the INT datapath under test.
