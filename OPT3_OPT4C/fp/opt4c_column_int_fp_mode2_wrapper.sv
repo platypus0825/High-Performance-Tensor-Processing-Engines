@@ -13,6 +13,8 @@ module opt4c_column_int_fp_mode2_wrapper #(
     output logic [1:0]       int_position,
     output logic [2:0]       int_cal_cycle,
     output logic [52*N-1:0]  int_pe_result,
+    output logic [32*N-1:0]  int_lane_result,
+    output logic [63:0]      int_mac_result,
 
     input  logic             fp_start,
     input  logic [31:0]      fp_operand_a,
@@ -54,6 +56,8 @@ opt4c_column_int_fp_mode_wrapper #(
     .int_position(int_position),
     .int_cal_cycle(int_cal_cycle),
     .int_pe_result(int_pe_result),
+    .int_lane_result(int_lane_result),
+    .int_mac_result(int_mac_result),
     .fp_start(fp_start),
     .fp_operand_a(fp_operand_a),
     .fp_operand_b(fp_operand_b),

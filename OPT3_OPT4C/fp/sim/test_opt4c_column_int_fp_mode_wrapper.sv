@@ -14,6 +14,8 @@ logic [8*N-1:0]   int_operand_b;
 wire  [1:0]       int_position;
 wire  [2:0]       int_cal_cycle;
 wire  [52*N-1:0]  int_pe_result;
+wire  [32*N-1:0]  int_lane_result;
+wire  [63:0]      int_mac_result;
 logic             fp_start;
 logic [31:0]      fp_operand_a;
 logic [31:0]      fp_operand_b;
@@ -40,6 +42,10 @@ wire              ref_fp_inexact;
 wire  [1:0]       ref_position;
 wire  [2:0]       ref_cal_cycle;
 wire  [52*N-1:0]  ref_pe_result;
+wire  signed [32*N-1:0] ref_int_lane_result;
+wire  signed [32*N-1:0] ref_int_shifted_result;
+wire  signed [63:0] ref_int_mac_result;
+wire  [63:0]      ref_fp_row_accumulated_product;
 logic             ref_int_clr;
 logic [7:0]       ref_int_en_multiplicand;
 logic [3:0]       ref_int_sign_en_multiplicand;
@@ -62,6 +68,8 @@ opt4c_column_int_fp_mode_wrapper #(
     .int_position(int_position),
     .int_cal_cycle(int_cal_cycle),
     .int_pe_result(int_pe_result),
+    .int_lane_result(int_lane_result),
+    .int_mac_result(int_mac_result),
     .fp_start(fp_start),
     .fp_operand_a(fp_operand_a),
     .fp_operand_b(fp_operand_b),
@@ -101,6 +109,21 @@ top_pe_column_pipe #(
     .position(ref_position),
     .cal_cycle(ref_cal_cycle),
     .pe_result(ref_pe_result)
+);
+
+opt4c_column_shift_accum_backend #(
+    .N(N),
+    .ACC_WIDTH(26)
+) ref_backend (
+    .lane_csa_result(ref_pe_result),
+    .local_shift(4'd0),
+    .row_index(2'd0),
+    .fp_chunk_acc({32*N{1'b0}}),
+    .fp_product_acc(64'd0),
+    .lane_fused_result(ref_int_lane_result),
+    .lane_shifted_result(ref_int_shifted_result),
+    .fixed_mac_result(ref_int_mac_result),
+    .fp_row_accumulated_product(ref_fp_row_accumulated_product)
 );
 
 always_ff @(posedge clk or negedge rst_n) begin
@@ -186,7 +209,9 @@ task check_int_passthrough;
             #1;
             if ((int_position !== ref_position) ||
                 (int_cal_cycle !== ref_cal_cycle) ||
-                (int_pe_result !== ref_pe_result)) begin
+                (int_pe_result !== ref_pe_result) ||
+                (int_lane_result !== ref_int_lane_result) ||
+                (int_mac_result !== ref_int_mac_result)) begin
                 $error("column INT passthrough mismatch cycle=%0d", cycle);
                 #1 $finish;
             end

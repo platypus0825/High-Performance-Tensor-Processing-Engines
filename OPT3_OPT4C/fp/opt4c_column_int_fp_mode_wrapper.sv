@@ -17,6 +17,8 @@ module opt4c_column_int_fp_mode_wrapper #(
     output logic [1:0]       int_position,
     output logic [2:0]       int_cal_cycle,
     output logic [52*N-1:0]  int_pe_result,
+    output logic [32*N-1:0]  int_lane_result,
+    output logic [63:0]      int_mac_result,
 
     input  logic             fp_start,
     input  logic [31:0]      fp_operand_a,
@@ -116,19 +118,19 @@ logic [8*N-1:0] column_operand_b_issue;
 wire  [1:0]  column_position;
 wire  [2:0]  column_cal_cycle;
 wire  [52*N-1:0] column_pe_result;
-
-logic signed [25:0] fp_fuse_result [0:FP_LANES-1];
-logic signed [31:0] fp_shift_result [0:FP_LANES-1];
+wire  signed [32*N-1:0] shared_lane_fused_result;
+wire  signed [32*N-1:0] shared_lane_shifted_result;
+wire  signed [63:0] shared_fixed_mac_result;
+wire  [63:0] shared_fp_row_accumulated_product;
 logic signed [31:0] fp_chunk_acc [0:FP_LANES-1];
+logic signed [32*N-1:0] fp_chunk_acc_packed;
 logic [63:0] fp_product_acc;
-logic [63:0] fp_row_accumulated_product;
 wire  [31:0] fp_result_next;
 wire         fp_invalid_next;
 wire         fp_overflow_next;
 wire         fp_underflow_next;
 wire         fp_inexact_next;
 
-integer fuse_lane;
 integer acc_lane;
 integer seq_lane;
 
@@ -258,6 +260,8 @@ assign column_operand_b            = mode_fp ? fp_operand_b_to_column : int_oper
 assign int_position  = column_position;
 assign int_cal_cycle = column_cal_cycle;
 assign int_pe_result = column_pe_result;
+assign int_lane_result = shared_lane_fused_result;
+assign int_mac_result = shared_fixed_mac_result;
 
 assign fp_busy = mode_fp && (state != S_IDLE);
 
@@ -273,20 +277,26 @@ end
 assign fp_sign_en_multiplicand = {3'd0, encoded_a[8]};
 
 always_comb begin
-    for (fuse_lane = 0; fuse_lane < FP_LANES; fuse_lane = fuse_lane + 1) begin
-        fp_fuse_result[fuse_lane] = $signed(column_pe_result[52*fuse_lane +: 26]) +
-                                    $signed(column_pe_result[52*fuse_lane+26 +: 26]);
-        fp_shift_result[fuse_lane] = $signed(fp_fuse_result[fuse_lane] << {fp_shift_bw_count, 1'b0});
+    fp_chunk_acc_packed = '0;
+    for (acc_lane = 0; acc_lane < FP_LANES; acc_lane = acc_lane + 1) begin
+        fp_chunk_acc_packed[32*acc_lane +: 32] = fp_chunk_acc[acc_lane];
     end
 end
 
-always_comb begin
-    fp_row_accumulated_product = fp_product_acc;
-    for (acc_lane = 0; acc_lane < FP_LANES; acc_lane = acc_lane + 1) begin
-        fp_row_accumulated_product = fp_row_accumulated_product +
-            ({32'd0, fp_chunk_acc[acc_lane]} << (7 * (row_index + acc_lane)));
-    end
-end
+opt4c_column_shift_accum_backend #(
+    .N(N),
+    .ACC_WIDTH(26)
+) shared_backend (
+    .lane_csa_result(column_pe_result),
+    .local_shift({fp_shift_bw_count, 1'b0}),
+    .row_index(row_index),
+    .fp_chunk_acc(fp_chunk_acc_packed),
+    .fp_product_acc(fp_product_acc),
+    .lane_fused_result(shared_lane_fused_result),
+    .lane_shifted_result(shared_lane_shifted_result),
+    .fixed_mac_result(shared_fixed_mac_result),
+    .fp_row_accumulated_product(shared_fp_row_accumulated_product)
+);
 
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -349,7 +359,8 @@ always_ff @(posedge clk or negedge rst_n) begin
 
         if (mode_fp && fp_compute_phase && fp_capture_result) begin
             for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
-                fp_chunk_acc[seq_lane] <= fp_chunk_acc[seq_lane] + fp_shift_result[seq_lane];
+                fp_chunk_acc[seq_lane] <= fp_chunk_acc[seq_lane] +
+                                          $signed(shared_lane_shifted_result[32*seq_lane +: 32]);
             end
         end
 
@@ -460,7 +471,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                 end
 
                 S_ACC_ROW: begin
-                    fp_product_acc <= fp_row_accumulated_product;
+                    fp_product_acc <= shared_fp_row_accumulated_product;
                     if (row_index == 2'd3) begin
                         state <= S_DONE;
                     end else begin
