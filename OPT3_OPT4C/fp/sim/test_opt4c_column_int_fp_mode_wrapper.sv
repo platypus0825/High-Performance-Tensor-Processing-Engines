@@ -15,13 +15,27 @@ wire  [1:0]       int_position;
 wire  [2:0]       int_cal_cycle;
 wire  [52*N-1:0]  int_pe_result;
 logic             fp_start;
-logic [23:0]      fp_mantissa_a;
-logic [23:0]      fp_mantissa_b;
+logic [31:0]      fp_operand_a;
+logic [31:0]      fp_operand_b;
 logic [2:0]       fp_min_group;
 wire              fp_busy;
 wire              fp_done;
 wire              fp_result_valid;
 wire  [47:0]      fp_mantissa_product;
+wire  [31:0]      fp_result;
+wire              fp_invalid;
+wire              fp_overflow;
+wire              fp_underflow;
+wire              fp_inexact;
+
+logic [31:0]      ref_fp_operand_a;
+logic [31:0]      ref_fp_operand_b;
+logic [47:0]      ref_mantissa_product;
+wire  [31:0]      ref_fp_result;
+wire              ref_fp_invalid;
+wire              ref_fp_overflow;
+wire              ref_fp_underflow;
+wire              ref_fp_inexact;
 
 wire  [1:0]       ref_position;
 wire  [2:0]       ref_cal_cycle;
@@ -49,13 +63,29 @@ opt4c_column_int_fp_mode_wrapper #(
     .int_cal_cycle(int_cal_cycle),
     .int_pe_result(int_pe_result),
     .fp_start(fp_start),
-    .fp_mantissa_a(fp_mantissa_a),
-    .fp_mantissa_b(fp_mantissa_b),
+    .fp_operand_a(fp_operand_a),
+    .fp_operand_b(fp_operand_b),
     .fp_min_group(fp_min_group),
     .fp_busy(fp_busy),
     .fp_done(fp_done),
     .fp_result_valid(fp_result_valid),
-    .fp_mantissa_product(fp_mantissa_product)
+    .fp_mantissa_product(fp_mantissa_product),
+    .fp_result(fp_result),
+    .fp_invalid(fp_invalid),
+    .fp_overflow(fp_overflow),
+    .fp_underflow(fp_underflow),
+    .fp_inexact(fp_inexact)
+);
+
+fp32_mul_postprocess ref_postprocess (
+    .operand_a(ref_fp_operand_a),
+    .operand_b(ref_fp_operand_b),
+    .mantissa_product(ref_mantissa_product),
+    .result(ref_fp_result),
+    .invalid(ref_fp_invalid),
+    .overflow(ref_fp_overflow),
+    .underflow(ref_fp_underflow),
+    .inexact(ref_fp_inexact)
 );
 
 top_pe_column_pipe #(
@@ -98,17 +128,19 @@ initial begin
     initialize();
     check_int_passthrough();
 
-    check_fp_case(24'h800000, 24'h800000, 3'd0);
-    check_fp_case(24'hffffff, 24'hffffff, 3'd0);
-    check_fp_case(24'hffffff, 24'hffffff, 3'd1);
-    check_fp_case(24'hffffff, 24'hffffff, 3'd2);
-    check_fp_case(24'hffffff, 24'hffffff, 3'd3);
-    check_fp_case(24'h812345, 24'h8abcde, 3'd4);
-    check_fp_case(24'h000000, 24'hffffff, 3'd0);
-    check_fp_case(24'h00007f, 24'h00007f, 3'd0);
+    check_fp_case(fp32_from_mantissa(24'h800000), fp32_from_mantissa(24'h800000), 3'd0);
+    check_fp_case(fp32_from_mantissa(24'hffffff), fp32_from_mantissa(24'hffffff), 3'd0);
+    check_fp_case(fp32_from_mantissa(24'hffffff), fp32_from_mantissa(24'hffffff), 3'd1);
+    check_fp_case(fp32_from_mantissa(24'hffffff), fp32_from_mantissa(24'hffffff), 3'd2);
+    check_fp_case(fp32_from_mantissa(24'hffffff), fp32_from_mantissa(24'hffffff), 3'd3);
+    check_fp_case(fp32_from_mantissa(24'h812345), fp32_from_mantissa(24'h8abcde), 3'd4);
+    check_fp_case(32'h00000000, fp32_from_mantissa(24'hffffff), 3'd0);
+    check_fp_case(32'h0000007f, 32'h0000007f, 3'd0);
 
     repeat (30) begin
-        check_fp_case($urandom() & 24'hffffff, $urandom() & 24'hffffff, ($urandom() % 5));
+        check_fp_case(fp32_from_mantissa(24'h800000 | ($urandom() & 24'h7fffff)),
+                      fp32_from_mantissa(24'h800000 | ($urandom() & 24'h7fffff)),
+                      ($urandom() % 5));
     end
 
     $display("\033[1;32mSUCCESS: OPT4C column INT/FP mode wrapper tests passed.\033[0m");
@@ -125,8 +157,11 @@ task initialize;
         int_encode_valid = 1'b0;
         int_operand_b = {8*N{1'b0}};
         fp_start = 1'b0;
-        fp_mantissa_a = 24'd0;
-        fp_mantissa_b = 24'd0;
+        fp_operand_a = 32'd0;
+        fp_operand_b = 32'd0;
+        ref_fp_operand_a = 32'd0;
+        ref_fp_operand_b = 32'd0;
+        ref_mantissa_product = 48'd0;
         fp_min_group = 3'd0;
         test_id = 0;
 
@@ -168,19 +203,27 @@ task check_int_passthrough;
 endtask
 
 task check_fp_case;
-    input [23:0] a;
-    input [23:0] b;
+    input [31:0] a;
+    input [31:0] b;
     input [2:0]  min_group;
+    reg [23:0] mantissa_a;
+    reg [23:0] mantissa_b;
     reg [47:0] golden;
     integer cycles;
     begin
         test_id = test_id + 1;
-        golden = pruned_product(a, b, min_group);
+        mantissa_a = unpack_fp32_mantissa(a);
+        mantissa_b = unpack_fp32_mantissa(b);
+        golden = pruned_product(mantissa_a, mantissa_b, min_group);
+        ref_fp_operand_a = a;
+        ref_fp_operand_b = b;
+        ref_mantissa_product = golden;
+        #1;
 
         @(negedge clk);
         mode_fp = 1'b1;
-        fp_mantissa_a = a;
-        fp_mantissa_b = b;
+        fp_operand_a = a;
+        fp_operand_b = b;
         fp_min_group = min_group;
         fp_start = 1'b1;
         @(negedge clk);
@@ -192,8 +235,8 @@ task check_fp_case;
             #1;
             cycles = cycles + 1;
             if (cycles > 1200) begin
-                $error("column FP wrapper timeout test=%0d a=%h b=%h min_group=%0d",
-                       test_id, a, b, min_group);
+                $error("column FP wrapper timeout test=%0d fp_a=%h fp_b=%h mant_a=%h mant_b=%h min_group=%0d",
+                       test_id, a, b, mantissa_a, mantissa_b, min_group);
                 #1 $finish;
             end
         end
@@ -204,8 +247,20 @@ task check_fp_case;
         end
 
         if (fp_mantissa_product !== golden) begin
-            $error("column FP wrapper mismatch test=%0d a=%h b=%h min_group=%0d expected=%h got=%h cycles=%0d",
-                   test_id, a, b, min_group, golden, fp_mantissa_product, cycles);
+            $error("column FP wrapper mismatch test=%0d fp_a=%h fp_b=%h mant_a=%h mant_b=%h min_group=%0d expected=%h got=%h cycles=%0d",
+                   test_id, a, b, mantissa_a, mantissa_b, min_group, golden, fp_mantissa_product, cycles);
+            #1 $finish;
+        end
+
+        if ((fp_result !== ref_fp_result) ||
+            (fp_invalid !== ref_fp_invalid) ||
+            (fp_overflow !== ref_fp_overflow) ||
+            (fp_underflow !== ref_fp_underflow) ||
+            (fp_inexact !== ref_fp_inexact)) begin
+            $error("column FP pack mismatch test=%0d fp_a=%h fp_b=%h min_group=%0d expected_result=%h got_result=%h flags expected=%b%b%b%b got=%b%b%b%b",
+                   test_id, a, b, min_group, ref_fp_result, fp_result,
+                   ref_fp_invalid, ref_fp_overflow, ref_fp_underflow, ref_fp_inexact,
+                   fp_invalid, fp_overflow, fp_underflow, fp_inexact);
             #1 $finish;
         end
 
@@ -214,6 +269,24 @@ task check_fp_case;
         repeat (6) @(posedge clk);
     end
 endtask
+
+function [31:0] fp32_from_mantissa;
+    input [23:0] mantissa;
+    begin
+        fp32_from_mantissa = {1'b0, 8'h7f, mantissa[22:0]};
+    end
+endfunction
+
+function [23:0] unpack_fp32_mantissa;
+    input [31:0] fp;
+    begin
+        if (fp[30:23] == 8'd0) begin
+            unpack_fp32_mantissa = {1'b0, fp[22:0]};
+        end else begin
+            unpack_fp32_mantissa = {1'b1, fp[22:0]};
+        end
+    end
+endfunction
 
 function [7:0] get_mantissa_chunk;
     input [23:0] value;

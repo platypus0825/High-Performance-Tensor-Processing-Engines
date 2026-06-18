@@ -4,4 +4,6 @@
 /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/pe/get_pipline_mulwidth.v
 /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/pe_pipelined.v
 /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/top_pe_column_pipe_override.v
+/home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/fp32_unpack.sv
+/home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/fp32_mul_postprocess.sv
 /home/chenhao/work/High-Performance-Tensor-Processing-Engines/OPT3_OPT4C/fp/opt4c_column_int_fp_mode_wrapper.sv

@@ -19,13 +19,18 @@ module opt4c_column_int_fp_mode_wrapper #(
     output logic [52*N-1:0]  int_pe_result,
 
     input  logic             fp_start,
-    input  logic [23:0]      fp_mantissa_a,
-    input  logic [23:0]      fp_mantissa_b,
+    input  logic [31:0]      fp_operand_a,
+    input  logic [31:0]      fp_operand_b,
     input  logic [2:0]       fp_min_group,
     output logic             fp_busy,
     output logic             fp_done,
     output logic             fp_result_valid,
-    output logic [47:0]      fp_mantissa_product
+    output logic [47:0]      fp_mantissa_product,
+    output logic [31:0]      fp_result,
+    output logic             fp_invalid,
+    output logic             fp_overflow,
+    output logic             fp_underflow,
+    output logic             fp_inexact
 );
 
 localparam int FP_LANES = 4;
@@ -42,6 +47,29 @@ localparam logic [3:0] S_ACC_ROW    = 4'd8;
 localparam logic [3:0] S_DONE       = 4'd9;
 
 logic [3:0] state;
+
+logic [31:0] fp_operand_a_reg;
+logic [31:0] fp_operand_b_reg;
+logic [2:0]  fp_min_group_reg;
+wire  [31:0] fp_operand_a_active;
+wire  [31:0] fp_operand_b_active;
+
+wire        fp_sign_a;
+wire        fp_sign_b;
+wire [7:0]  fp_exponent_a;
+wire [7:0]  fp_exponent_b;
+wire [22:0] fp_fraction_a;
+wire [22:0] fp_fraction_b;
+wire [23:0] fp_unpacked_mantissa_a;
+wire [23:0] fp_unpacked_mantissa_b;
+wire        fp_a_is_zero;
+wire        fp_b_is_zero;
+wire        fp_a_is_subnormal;
+wire        fp_b_is_subnormal;
+wire        fp_a_is_inf;
+wire        fp_b_is_inf;
+wire        fp_a_is_nan;
+wire        fp_b_is_nan;
 
 logic [7:0] a_chunk [0:FP_LANES-1];
 logic [7:0] b_chunk [0:FP_LANES-1];
@@ -94,21 +122,64 @@ logic signed [31:0] fp_shift_result [0:FP_LANES-1];
 logic signed [31:0] fp_chunk_acc [0:FP_LANES-1];
 logic [63:0] fp_product_acc;
 logic [63:0] fp_row_accumulated_product;
+wire  [31:0] fp_result_next;
+wire         fp_invalid_next;
+wire         fp_overflow_next;
+wire         fp_underflow_next;
+wire         fp_inexact_next;
 
 integer fuse_lane;
 integer acc_lane;
 integer seq_lane;
 
-always_comb begin
-    a_chunk[0] = {1'b0, fp_mantissa_a[6:0]};
-    a_chunk[1] = {1'b0, fp_mantissa_a[13:7]};
-    a_chunk[2] = {1'b0, fp_mantissa_a[20:14]};
-    a_chunk[3] = {5'b0, fp_mantissa_a[23:21]};
+assign fp_operand_a_active = ((state == S_IDLE) && fp_start) ? fp_operand_a : fp_operand_a_reg;
+assign fp_operand_b_active = ((state == S_IDLE) && fp_start) ? fp_operand_b : fp_operand_b_reg;
 
-    b_chunk[0] = {1'b0, fp_mantissa_b[6:0]};
-    b_chunk[1] = {1'b0, fp_mantissa_b[13:7]};
-    b_chunk[2] = {1'b0, fp_mantissa_b[20:14]};
-    b_chunk[3] = {5'b0, fp_mantissa_b[23:21]};
+fp32_unpack unpack_a (
+    .fp(fp_operand_a_active),
+    .sign(fp_sign_a),
+    .exponent(fp_exponent_a),
+    .fraction(fp_fraction_a),
+    .mantissa(fp_unpacked_mantissa_a),
+    .is_zero(fp_a_is_zero),
+    .is_subnormal(fp_a_is_subnormal),
+    .is_inf(fp_a_is_inf),
+    .is_nan(fp_a_is_nan)
+);
+
+fp32_unpack unpack_b (
+    .fp(fp_operand_b_active),
+    .sign(fp_sign_b),
+    .exponent(fp_exponent_b),
+    .fraction(fp_fraction_b),
+    .mantissa(fp_unpacked_mantissa_b),
+    .is_zero(fp_b_is_zero),
+    .is_subnormal(fp_b_is_subnormal),
+    .is_inf(fp_b_is_inf),
+    .is_nan(fp_b_is_nan)
+);
+
+fp32_mul_postprocess fp_postprocess (
+    .operand_a(fp_operand_a_reg),
+    .operand_b(fp_operand_b_reg),
+    .mantissa_product(fp_product_acc[47:0]),
+    .result(fp_result_next),
+    .invalid(fp_invalid_next),
+    .overflow(fp_overflow_next),
+    .underflow(fp_underflow_next),
+    .inexact(fp_inexact_next)
+);
+
+always_comb begin
+    a_chunk[0] = {1'b0, fp_unpacked_mantissa_a[6:0]};
+    a_chunk[1] = {1'b0, fp_unpacked_mantissa_a[13:7]};
+    a_chunk[2] = {1'b0, fp_unpacked_mantissa_a[20:14]};
+    a_chunk[3] = {5'b0, fp_unpacked_mantissa_a[23:21]};
+
+    b_chunk[0] = {1'b0, fp_unpacked_mantissa_b[6:0]};
+    b_chunk[1] = {1'b0, fp_unpacked_mantissa_b[13:7]};
+    b_chunk[2] = {1'b0, fp_unpacked_mantissa_b[20:14]};
+    b_chunk[3] = {5'b0, fp_unpacked_mantissa_b[23:21]};
 end
 
 assign fp_capture_result = fp_capture_token_delayed;
@@ -254,7 +325,15 @@ always_ff @(posedge clk or negedge rst_n) begin
         fp_operand_b_pre <= {8*N{1'b0}};
         fp_compute_phase <= 1'b0;
         fp_product_acc <= 64'd0;
+        fp_operand_a_reg <= 32'd0;
+        fp_operand_b_reg <= 32'd0;
+        fp_min_group_reg <= 3'd0;
         fp_mantissa_product <= 48'd0;
+        fp_result <= 32'd0;
+        fp_invalid <= 1'b0;
+        fp_overflow <= 1'b0;
+        fp_underflow <= 1'b0;
+        fp_inexact <= 1'b0;
         fp_done <= 1'b0;
         fp_result_valid <= 1'b0;
         for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
@@ -295,6 +374,9 @@ always_ff @(posedge clk or negedge rst_n) begin
                     fp_operand_b_pre <= {8*N{1'b0}};
                     fp_compute_phase <= 1'b0;
                     if (fp_start) begin
+                        fp_operand_a_reg <= fp_operand_a;
+                        fp_operand_b_reg <= fp_operand_b;
+                        fp_min_group_reg <= fp_min_group;
                         state <= S_LOAD_ROW;
                     end
                 end
@@ -302,7 +384,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                 S_LOAD_ROW: begin
                     current_a <= a_chunk[row_index];
                     for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
-                        current_b[seq_lane] <= (((row_index + seq_lane) >= fp_min_group) &&
+                        current_b[seq_lane] <= (((row_index + seq_lane) >= fp_min_group_reg) &&
                                                 (a_chunk[row_index] != 8'd0)) ? b_chunk[seq_lane] : 8'd0;
                         fp_chunk_acc[seq_lane] <= 32'sd0;
                     end
@@ -389,6 +471,11 @@ always_ff @(posedge clk or negedge rst_n) begin
 
                 S_DONE: begin
                     fp_mantissa_product <= fp_product_acc[47:0];
+                    fp_result <= fp_result_next;
+                    fp_invalid <= fp_invalid_next;
+                    fp_overflow <= fp_overflow_next;
+                    fp_underflow <= fp_underflow_next;
+                    fp_inexact <= fp_inexact_next;
                     fp_result_valid <= 1'b1;
                     fp_done <= 1'b1;
                     state <= S_IDLE;

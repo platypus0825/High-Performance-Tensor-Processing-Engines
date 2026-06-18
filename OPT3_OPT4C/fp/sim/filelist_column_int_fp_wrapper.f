@@ -5,5 +5,7 @@
 ../../pe/get_pipline_mulwidth.v
 ../pe_pipelined.v
 ../top_pe_column_pipe_override.v
+../fp32_unpack.sv
+../fp32_mul_postprocess.sv
 ../opt4c_column_int_fp_mode_wrapper.sv
 test_opt4c_column_int_fp_mode_wrapper.sv

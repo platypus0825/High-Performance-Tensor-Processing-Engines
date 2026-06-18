@@ -15,12 +15,17 @@ module opt4c_column_int_fp_mode2_wrapper #(
     output logic [52*N-1:0]  int_pe_result,
 
     input  logic             fp_start,
-    input  logic [23:0]      fp_mantissa_a,
-    input  logic [23:0]      fp_mantissa_b,
+    input  logic [31:0]      fp_operand_a,
+    input  logic [31:0]      fp_operand_b,
     output logic             fp_busy,
     output logic             fp_done,
     output logic             fp_result_valid,
-    output logic [47:0]      fp_mantissa_product
+    output logic [47:0]      fp_mantissa_product,
+    output logic [31:0]      fp_result,
+    output logic             fp_invalid,
+    output logic             fp_overflow,
+    output logic             fp_underflow,
+    output logic             fp_inexact
 );
 
 logic       mode_fp;
@@ -50,13 +55,18 @@ opt4c_column_int_fp_mode_wrapper #(
     .int_cal_cycle(int_cal_cycle),
     .int_pe_result(int_pe_result),
     .fp_start(fp_start),
-    .fp_mantissa_a(fp_mantissa_a),
-    .fp_mantissa_b(fp_mantissa_b),
+    .fp_operand_a(fp_operand_a),
+    .fp_operand_b(fp_operand_b),
     .fp_min_group(fp_min_group),
     .fp_busy(fp_busy),
     .fp_done(fp_done),
     .fp_result_valid(fp_result_valid),
-    .fp_mantissa_product(fp_mantissa_product)
+    .fp_mantissa_product(fp_mantissa_product),
+    .fp_result(fp_result),
+    .fp_invalid(fp_invalid),
+    .fp_overflow(fp_overflow),
+    .fp_underflow(fp_underflow),
+    .fp_inexact(fp_inexact)
 );
 
 endmodule
