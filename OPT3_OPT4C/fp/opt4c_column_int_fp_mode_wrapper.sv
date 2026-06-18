@@ -3,7 +3,7 @@ module opt4c_column_int_fp_mode_wrapper #(
     parameter FP_CLR_DELAY_CYCLES = 4,
     parameter FP_BW_DELAY_CYCLES = 5,
     parameter FP_DRAIN_LIMIT = 9,
-    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 6
+    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 5
 ) (
     input  logic             clk,
     input  logic             rst_n,
