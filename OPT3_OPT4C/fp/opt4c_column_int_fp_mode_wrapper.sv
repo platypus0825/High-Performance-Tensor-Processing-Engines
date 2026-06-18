@@ -3,7 +3,8 @@ module opt4c_column_int_fp_mode_wrapper #(
     parameter FP_CLR_DELAY_CYCLES = 4,
     parameter FP_BW_DELAY_CYCLES = 5,
     parameter FP_DRAIN_LIMIT = 9,
-    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 5
+    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 6,
+    parameter FP_CAPTURE_BW_DELAY_CYCLES = 5
 ) (
     input  logic             clk,
     input  logic             rst_n,
@@ -231,7 +232,7 @@ get_pipeline_mulwidth #(
 );
 
 get_pipeline_mulwidth #(
-    .N(FP_CAPTURE_TOKEN_DELAY_CYCLES),
+    .N(FP_CAPTURE_BW_DELAY_CYCLES),
     .WIDTH(3)
 ) fp_capture_bw_delay (
     .clk(clk),
