@@ -3,7 +3,7 @@ module opt4c_column_int_fp_mode_wrapper #(
     parameter FP_CLR_DELAY_CYCLES = 4,
     parameter FP_BW_DELAY_CYCLES = 5,
     parameter FP_DRAIN_LIMIT = 9,
-    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 5
+    parameter FP_CAPTURE_TOKEN_DELAY_CYCLES = 6
 ) (
     input  logic             clk,
     input  logic             rst_n,
@@ -118,10 +118,14 @@ logic [8*N-1:0] column_operand_b_issue;
 wire  [1:0]  column_position;
 wire  [2:0]  column_cal_cycle;
 wire  [52*N-1:0] column_pe_result;
-wire  signed [32*N-1:0] shared_lane_fused_result;
-wire  signed [32*N-1:0] shared_lane_shifted_result;
-wire  signed [63:0] shared_fixed_mac_result;
+wire  signed [32*N-1:0] shared_lane_fused_comb;
+wire  signed [32*N-1:0] shared_lane_shifted_comb;
+wire  signed [63:0] shared_fixed_mac_comb;
 wire  [63:0] shared_fp_row_accumulated_product;
+logic signed [32*N-1:0] shared_lane_fused_reg;
+logic signed [32*N-1:0] shared_lane_shifted_reg;
+logic signed [63:0] shared_fixed_pair_sum_reg [0:1];
+logic [63:0] shared_fp_row_accumulated_product_reg;
 logic signed [31:0] fp_chunk_acc [0:FP_LANES-1];
 logic signed [32*N-1:0] fp_chunk_acc_packed;
 logic [63:0] fp_product_acc;
@@ -260,8 +264,7 @@ assign column_operand_b            = mode_fp ? fp_operand_b_to_column : int_oper
 assign int_position  = column_position;
 assign int_cal_cycle = column_cal_cycle;
 assign int_pe_result = column_pe_result;
-assign int_lane_result = shared_lane_fused_result;
-assign int_mac_result = shared_fixed_mac_result;
+assign int_lane_result = shared_lane_fused_reg;
 
 assign fp_busy = mode_fp && (state != S_IDLE);
 
@@ -292,9 +295,9 @@ opt4c_column_shift_accum_backend #(
     .row_index(row_index),
     .fp_chunk_acc(fp_chunk_acc_packed),
     .fp_product_acc(fp_product_acc),
-    .lane_fused_result(shared_lane_fused_result),
-    .lane_shifted_result(shared_lane_shifted_result),
-    .fixed_mac_result(shared_fixed_mac_result),
+    .lane_fused_result(shared_lane_fused_comb),
+    .lane_shifted_result(shared_lane_shifted_comb),
+    .fixed_mac_result(shared_fixed_mac_comb),
     .fp_row_accumulated_product(shared_fp_row_accumulated_product)
 );
 
@@ -313,6 +316,28 @@ always_ff @(posedge clk or negedge rst_n) begin
         column_sign_en_multiplicand_issue <= column_sign_en_multiplicand;
         column_encode_valid_issue <= column_encode_valid;
         column_operand_b_issue <= column_operand_b;
+    end
+end
+
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        shared_lane_fused_reg <= {32*N{1'b0}};
+        shared_lane_shifted_reg <= {32*N{1'b0}};
+        shared_fixed_pair_sum_reg[0] <= 64'sd0;
+        shared_fixed_pair_sum_reg[1] <= 64'sd0;
+        shared_fp_row_accumulated_product_reg <= 64'd0;
+        int_mac_result <= 64'd0;
+    end else begin
+        shared_lane_fused_reg <= shared_lane_fused_comb;
+        shared_lane_shifted_reg <= shared_lane_shifted_comb;
+        shared_fixed_pair_sum_reg[0] <=
+            {{32{shared_lane_fused_reg[31]}}, shared_lane_fused_reg[0 +: 32]} +
+            {{32{shared_lane_fused_reg[63]}}, shared_lane_fused_reg[32 +: 32]};
+        shared_fixed_pair_sum_reg[1] <=
+            {{32{shared_lane_fused_reg[95]}}, shared_lane_fused_reg[64 +: 32]} +
+            {{32{shared_lane_fused_reg[127]}}, shared_lane_fused_reg[96 +: 32]};
+        shared_fp_row_accumulated_product_reg <= shared_fp_row_accumulated_product;
+        int_mac_result <= shared_fixed_pair_sum_reg[0] + shared_fixed_pair_sum_reg[1];
     end
 end
 
@@ -360,7 +385,7 @@ always_ff @(posedge clk or negedge rst_n) begin
         if (mode_fp && fp_compute_phase && fp_capture_result) begin
             for (seq_lane = 0; seq_lane < FP_LANES; seq_lane = seq_lane + 1) begin
                 fp_chunk_acc[seq_lane] <= fp_chunk_acc[seq_lane] +
-                                          $signed(shared_lane_shifted_result[32*seq_lane +: 32]);
+                                          $signed(shared_lane_shifted_reg[32*seq_lane +: 32]);
             end
         end
 
@@ -471,7 +496,7 @@ always_ff @(posedge clk or negedge rst_n) begin
                 end
 
                 S_ACC_ROW: begin
-                    fp_product_acc <= shared_fp_row_accumulated_product;
+                    fp_product_acc <= shared_fp_row_accumulated_product_reg;
                     if (row_index == 2'd3) begin
                         state <= S_DONE;
                     end else begin

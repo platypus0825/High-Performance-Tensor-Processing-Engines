@@ -46,6 +46,9 @@ wire  signed [32*N-1:0] ref_int_lane_result;
 wire  signed [32*N-1:0] ref_int_shifted_result;
 wire  signed [63:0] ref_int_mac_result;
 wire  [63:0]      ref_fp_row_accumulated_product;
+logic signed [32*N-1:0] ref_int_lane_result_s1;
+logic signed [63:0] ref_int_pair_sum_s2 [0:1];
+logic [63:0]      ref_int_mac_result_s3;
 logic             ref_int_clr;
 logic [7:0]       ref_int_en_multiplicand;
 logic [3:0]       ref_int_sign_en_multiplicand;
@@ -142,6 +145,24 @@ always_ff @(posedge clk or negedge rst_n) begin
     end
 end
 
+always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        ref_int_lane_result_s1 <= {32*N{1'b0}};
+        ref_int_pair_sum_s2[0] <= 64'sd0;
+        ref_int_pair_sum_s2[1] <= 64'sd0;
+        ref_int_mac_result_s3 <= 64'd0;
+    end else begin
+        ref_int_lane_result_s1 <= ref_int_lane_result;
+        ref_int_pair_sum_s2[0] <=
+            {{32{ref_int_lane_result_s1[31]}}, ref_int_lane_result_s1[0 +: 32]} +
+            {{32{ref_int_lane_result_s1[63]}}, ref_int_lane_result_s1[32 +: 32]};
+        ref_int_pair_sum_s2[1] <=
+            {{32{ref_int_lane_result_s1[95]}}, ref_int_lane_result_s1[64 +: 32]} +
+            {{32{ref_int_lane_result_s1[127]}}, ref_int_lane_result_s1[96 +: 32]};
+        ref_int_mac_result_s3 <= ref_int_pair_sum_s2[0] + ref_int_pair_sum_s2[1];
+    end
+end
+
 initial begin
     clk = 1'b0;
     forever #(clk_T / 2) clk = ~clk;
@@ -210,8 +231,8 @@ task check_int_passthrough;
             if ((int_position !== ref_position) ||
                 (int_cal_cycle !== ref_cal_cycle) ||
                 (int_pe_result !== ref_pe_result) ||
-                (int_lane_result !== ref_int_lane_result) ||
-                (int_mac_result !== ref_int_mac_result)) begin
+                (int_lane_result !== ref_int_lane_result_s1) ||
+                (int_mac_result !== ref_int_mac_result_s3)) begin
                 $error("column INT passthrough mismatch cycle=%0d", cycle);
                 #1 $finish;
             end
